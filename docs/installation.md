@@ -20,7 +20,7 @@ This applies a [kustomize bundle](../config/install/kustomization.yaml) that pin
 ## Components
 
 | Component | Install URL | Required? |
-|---|---|---|
+| --- | --- | --- |
 | rollout-controller | `https://github.com/kuberik/rollout-controller/releases/latest/download/install.yaml` | yes |
 | rollout-dashboard | `https://github.com/kuberik/rollout-dashboard/releases/latest/download/install.yaml` | no |
 | datadog-controller | `https://github.com/kuberik/datadog-controller/releases/latest/download/install.yaml` | no |

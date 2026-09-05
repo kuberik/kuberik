@@ -90,6 +90,6 @@ Source: [kuberik/rollout-dashboard](https://github.com/kuberik/rollout-dashboard
 ## CRD Ownership
 
 | CRD | Owner |
-|---|---|
+| --- | --- |
 | `Rollout`, `RolloutGate`, `HealthCheck`, `RolloutSchedule`, `ClusterRolloutSchedule` | rollout-controller |
 | `Environment` | environment-controller |

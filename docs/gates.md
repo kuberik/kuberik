@@ -36,7 +36,7 @@ kubectl patch rolloutgate my-app-approval -n production \
 Different controllers create gates for different reasons. The Rollout does not care who set the gate - all it sees is the boolean.
 
 | Source | What it gates on |
-|---|---|
+| --- | --- |
 | Manual | A human (or ChatOps bot) flips `spec.passing` |
 | RolloutSchedule | Time-based: business hours, holiday freezes, maintenance windows |
 | environment-controller | Promotion order: production gates on staging being deployed (`After` relationship) |

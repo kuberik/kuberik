@@ -46,7 +46,7 @@ helm install kuberik ./chart/kuberik \
 ## Values
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `namespace` | `kuberik-system` | Namespace the controllers run in |
 | `rolloutController.enabled` | `true` | Install the core controller |
 | `rolloutController.image.repository` | `ghcr.io/kuberik/rollout-controller` | Controller image |

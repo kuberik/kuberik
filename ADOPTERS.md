@@ -16,5 +16,5 @@ You can also fill in less detail if your legal team requires it - even just an o
 ## Adopters
 
 | Organization | Use case | Since | Link |
-|---|---|---|---|
-| _Add yours here_ | | | |
+| --- | --- | --- | --- |
+| _Add yours here_ |  |  |  |

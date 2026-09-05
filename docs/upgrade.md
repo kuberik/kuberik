@@ -30,7 +30,7 @@ kubectl apply -f kuberik/crds/
 ## Chart -> controller version matrix
 
 | Chart version | rollout-controller | datadog | openkruise | environment | dashboard |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | 0.2.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
 | 0.3.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
 

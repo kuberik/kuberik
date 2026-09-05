@@ -16,11 +16,11 @@ Install the [Kuberik CLI](https://github.com/kuberik/kuberik) on Linux, macOS, o
 
 ## Inputs
 
-| Name      | Description                                                                  | Required |
-|-----------|------------------------------------------------------------------------------|----------|
-| `version` | CLI version (e.g. `0.1.0`). Defaults to latest stable release.               | no       |
-| `bindir`  | Override the install directory. Defaults to a path under `$RUNNER_TOOL_CACHE`. | no       |
-| `token`   | GitHub token for the releases API (avoids rate limits).                      | no       |
+| Name | Description | Required |
+| --- | --- | --- |
+| `version` | CLI version (e.g. `0.1.0`). Defaults to latest stable release. | no |
+| `bindir` | Override the install directory. Defaults to a path under `$RUNNER_TOOL_CACHE`. | no |
+| `token` | GitHub token for the releases API (avoids rate limits). | no |
 
 ## Examples
 

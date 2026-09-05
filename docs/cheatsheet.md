@@ -16,7 +16,7 @@ helm install kuberik kuberik/kuberik \
 ## CRDs at a glance
 
 | Kind | Group | Scope | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `Rollout` | `kuberik.com/v1alpha1` | namespaced | Release pipeline |
 | `RolloutGate` | same | namespaced | Boolean veto on a Rollout |
 | `HealthCheck` | same | namespaced | Bake-period validation signal |

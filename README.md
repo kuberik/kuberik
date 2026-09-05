@@ -27,7 +27,7 @@ Kuberik is declarative, multi-stage progressive delivery for Kubernetes - from c
 ## Features
 
 | Feature | Description |
-|---|---|
+| --- | --- |
 | **Multi-Stage Pipelines** | Promote releases across environments with dependencies between stages. |
 | **Deployment Gates** | Control when and which releases deploy - with schedules, manual approvals, or custom conditions. |
 | **Canary Rollouts** | Gradually roll out changes to a subset of users before full promotion. |
@@ -122,7 +122,7 @@ graph TD
 ## Components
 
 | Component | Purpose |
-|---|---|
+| --- | --- |
 | [rollout-controller](https://github.com/kuberik/rollout-controller) | Core controller. Manages Rollout, RolloutGate, HealthCheck, and RolloutSchedule CRDs. |
 | [rollout-dashboard](https://github.com/kuberik/rollout-dashboard) | Web UI for visualizing rollout status across namespaces. |
 | [datadog-controller](https://github.com/kuberik/datadog-controller) | Creates kuberik HealthCheck resources from DatadogMonitor status. |

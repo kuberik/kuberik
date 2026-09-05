@@ -41,7 +41,7 @@ sudo install bin/kuberik /usr/local/bin/
 ## Global flags
 
 | Flag | Description |
-|---|---|
+| --- | --- |
 | `--kubeconfig` | Path to a kubeconfig file. Defaults to `$KUBECONFIG` or `~/.kube/config`. |
 | `-n, --namespace` | Kubernetes namespace. Defaults to `default`. |
 | `-v, --version` | Print version and exit. |

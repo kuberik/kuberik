@@ -31,12 +31,12 @@ Skip the Flux install with --flux=false if your cluster already has it.`,
 			return err
 		}
 		if !bootstrapFluxOnly {
-			fmt.Fprintln(cmd.OutOrStderr(), "Installing Flux core (source, kustomize, image-reflector)...")
+			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Installing Flux core (source, kustomize, image-reflector)...")
 			if err := kubectl("apply", "-f", fluxImageReflectorURL).Run(); err != nil {
 				return fmt.Errorf("flux install: %w", err)
 			}
 		}
-		fmt.Fprintln(cmd.OutOrStderr(), "Installing Kuberik...")
+		_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Installing Kuberik...")
 		url := coreInstallURL
 		args2 := []string{"apply", "-f", url}
 		if bootstrapAll {

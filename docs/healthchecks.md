@@ -33,7 +33,7 @@ Key status fields:
 ## Producers
 
 | Controller | What it watches |
-|---|---|
+| --- | --- |
 | datadog-controller | `DatadogMonitor` resources annotated `kuberik.com/health-check: "true"` |
 | prometheus-controller | PromQL queries or alert states |
 | Your custom controller | Anything you can compute - synthetic probes, smoke test job results, dependency dashboards |

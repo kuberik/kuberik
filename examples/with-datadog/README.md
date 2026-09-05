@@ -5,7 +5,7 @@ Use Datadog as a health signal for a Kuberik Rollout. While the signal is health
 Three modes, pick one:
 
 | File | Mode | Requires Datadog Operator? |
-|------|------|------|
+| --- | --- | --- |
 | [monitor.yaml](monitor.yaml) | Annotate a `DatadogMonitor` CRD | Yes |
 | [healthcheck-datadog-api.yaml](healthcheck-datadog-api.yaml) | Poll a monitor via the Datadog API directly | No |
 | [healthcheck-datadog-incidents.yaml](healthcheck-datadog-incidents.yaml) | Go unhealthy while a labeled incident is open | No |

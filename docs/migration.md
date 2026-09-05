@@ -9,7 +9,7 @@ Argo Rollouts owns the deployment strategy (canary, blue-green) and traffic shif
 These two tools are not direct replacements - many teams run both. A typical layout:
 
 | Argo Rollouts concept | Kuberik analog |
-|---|---|
+| --- | --- |
 | `Rollout` (with strategy.canary/.blueGreen) | Continue using - drives traffic shifting and pod orchestration |
 | `AnalysisTemplate` | `HealthCheck` produced by an integration controller |
 | `AnalysisRun` | `HealthCheck.status` during the bake window |
@@ -24,7 +24,7 @@ Kuberik does not implement traffic-shifting itself. If you already use Argo Roll
 Flagger automates progressive delivery on a single workload: it shifts traffic, runs metric analysis, and rolls back on failure. Kuberik separates these concerns into independent controllers and CRDs:
 
 | Flagger concept | Kuberik analog |
-|---|---|
+| --- | --- |
 | `Canary` resource | Combination of `Rollout` + `HealthCheck` + strategy (e.g. OpenKruise) |
 | Webhook checks | `RolloutGate` produced by a custom controller |
 | Metric template (PromQL / Datadog) | `HealthCheck` from prometheus-controller / datadog-controller |

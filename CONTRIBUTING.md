@@ -11,7 +11,7 @@ For broader questions or design discussion, start a thread in [GitHub Discussion
 ## Where the code lives
 
 | Component | Repository |
-|---|---|
+| --- | --- |
 | Core controller (CRDs, reconcilers) | [rollout-controller](https://github.com/kuberik/rollout-controller) |
 | Web dashboard | [rollout-dashboard](https://github.com/kuberik/rollout-dashboard) |
 | Datadog integration | [datadog-controller](https://github.com/kuberik/datadog-controller) |

@@ -5,7 +5,7 @@ The Kuberik controllers expose Prometheus metrics on port `8080` at `/metrics` (
 ## rollout-controller
 
 | Metric | Type | Labels | Meaning |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `kuberik_rollout_promotions_total` | counter | `rollout`, `namespace`, `result` (`succeeded`/`failed`) | Number of release promotions attempted |
 | `kuberik_rollout_bake_failures_total` | counter | `rollout`, `namespace`, `reason` | Bake failures by reason (`unhealthy`, `lastErrorTime`, `manual_reject`) |
 | `kuberik_rollout_gate_blocked_seconds` | histogram | `rollout`, `gate`, `namespace` | How long a rollout sat blocked by a specific gate |
