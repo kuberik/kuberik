@@ -33,6 +33,9 @@ kubectl apply -f kuberik/crds/
 | --- | --- | --- | --- | --- | --- |
 | 0.2.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
 | 0.3.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
+| 0.4.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
+| 0.5.0 | v0.8.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.0 |
+| 0.5.1 | v0.8.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.2 |
 
 Always check the release notes of the chart version you are upgrading to for any deviations from this baseline.
 
