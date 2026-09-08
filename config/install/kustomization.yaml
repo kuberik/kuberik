@@ -15,6 +15,6 @@ resources:
   - https://github.com/kuberik/rollout-controller/releases/download/v0.8.0/install.yaml
 
   # Integrations (optional - comment out what you don't need)
-  - https://github.com/kuberik/openkruise-controller/releases/download/v0.4.0/install.yaml
+  - https://github.com/kuberik/openkruise-controller/releases/download/v0.4.1/install.yaml
   - https://github.com/kuberik/datadog-controller/releases/download/v0.1.0/install.yaml
   - https://github.com/kuberik/environment-controller/releases/download/v0.1.5/install.yaml
