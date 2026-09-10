@@ -70,6 +70,7 @@ helm install kuberik ./chart/kuberik \
 | `auth.canonicalHost` | `""` | Host that owns the OAuth2 callback (`/oauth2/callback`) |
 | `auth.cookieDomain` | _canonicalHost_ | Cookie scope; set a parent domain to share session across subdomains |
 | `auth.gateway.name` | `""` | Gateway the `/oauth2/*` HTTPRoute attaches to |
+| `auth.apiRoutes` | `["^/api/"]` | Paths answered `401` instead of redirected to the IdP, so the dashboard's polling/SSE requests don't start background OIDC flows |
 | `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator ServiceMonitor for the rollout-controller |
 | `networkPolicy.enabled` | `false` | Restrict ingress/egress for the controller pods |
 | `rolloutController.podDisruptionBudget.enabled` | `false` | Emit a PDB (requires replicas > 1) |

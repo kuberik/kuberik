@@ -67,6 +67,9 @@ spec:
             - --pass-access-token=true
             - --set-xauthrequest=true
             - --skip-provider-button=true
+            {{- range $auth.apiRoutes }}
+            - --api-route={{ . }}
+            {{- end }}
             - --cookie-secure=true
             - --cookie-samesite=lax
             - --cookie-domain={{ $cookieDomain }}

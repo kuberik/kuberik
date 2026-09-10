@@ -221,6 +221,28 @@ auth:
   # session cookie. Required for multi-cluster hub->spoke fan-out and any
   # programmatic caller that already holds an id_token.
   skipJwtBearerTokens: true
+  # Path regexes answered with 401 instead of a redirect to the IdP.
+  #
+  # The dashboard is a polling SPA (5s refresh interval, plus an SSE change
+  # stream). Without this, every background request that arrives with a stale
+  # session starts a full OIDC flow at extAuth time - a 302 to the IdP plus a
+  # CSRF cookie holding a fresh PKCE verifier. The browser cannot follow that
+  # redirect from an XHR (cross-origin, CORS-blocked), so the SPA never
+  # recovers and just keeps polling, starting another flow each time.
+  #
+  # Two things go wrong as a result. Concurrent flows race over the CSRF
+  # cookie and produce `invalid_grant: PKCE verification failed` on login
+  # (oauth2-proxy#2155). And if you reach for `--cookie-csrf-per-request` to
+  # fix that race, each flow gets a *uniquely named* cookie the browser never
+  # overwrites - they accumulate until the `Cookie` header exceeds the proxy's
+  # header cap (60 KiB in Envoy) and the host stops loading entirely for that
+  # browser until site data is cleared.
+  #
+  # Answering /api/* with 401 removes the cause: no background flows, nothing
+  # to race, no cookies minted. Browser navigations still redirect normally.
+  # Set to [] to restore the old behaviour.
+  apiRoutes:
+    - "^/api/"
   # Extra command-line args appended to oauth2-proxy. Useful for tweaks
   # like --whitelist-domain, --upstream-timeout, etc.
   extraArgs: []
