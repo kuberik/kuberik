@@ -7,8 +7,10 @@ Kuberik is a collection of independently versioned Kubernetes controllers. You c
 Install everything (recommended for getting started):
 
 ```bash
-kubectl apply -k https://github.com/kuberik/kuberik/config/install
+kubectl apply --server-side -k https://github.com/kuberik/kuberik/config/install
 ```
+
+`--server-side` is required: the openkruise `RolloutTest` CRD is larger than the annotation limit of client-side `kubectl apply`.
 
 This applies a [kustomize bundle](../config/install/kustomization.yaml) that pins compatible versions of:
 
