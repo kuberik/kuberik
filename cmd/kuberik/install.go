@@ -24,9 +24,9 @@ environment-controller).`,
 			return err
 		}
 		if installAll {
-			return kubectl("apply", "-k", allInstallURL).Run()
+			return kubectl(applyArgs("-k", allInstallURL)...).Run()
 		}
-		return kubectl("apply", "-f", coreInstallURL).Run()
+		return kubectl(applyArgs("-f", coreInstallURL)...).Run()
 	},
 }
 

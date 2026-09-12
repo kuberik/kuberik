@@ -28,3 +28,13 @@ func requireKubectl() error {
 	}
 	return nil
 }
+
+// applyArgs builds a server-side `kubectl apply` for an install manifest.
+// Client-side apply stores the whole object in an annotation, and the
+// openkruise RolloutTest CRD (660 KB) is over the 256 KiB annotation limit,
+// so a plain `kubectl apply` of the bundle fails with
+// "metadata.annotations: Too long". Conflicts are forced because these are
+// our own install manifests: the last apply wins, as an installer expects.
+func applyArgs(source, ref string) []string {
+	return []string{"apply", "--server-side", "--force-conflicts", source, ref}
+}
