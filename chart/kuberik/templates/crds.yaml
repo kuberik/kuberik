@@ -1,0 +1,23 @@
+{{- /*
+CRDs are rendered as ordinary chart resources instead of living in crds/,
+so `helm upgrade` installs new ones and updates existing ones. Helm never
+touches crds/ on upgrade, which left controller releases that add a CRD
+crashlooping after an upgrade.
+
+crds.keep adds helm.sh/resource-policy: keep, so `helm uninstall` (and a
+future chart that drops a CRD) leaves the CRD and every CR in place.
+Source files: files/crds/, copied verbatim from each controller release.
+*/ -}}
+{{- if .Values.crds.install }}
+{{- range $path, $_ := .Files.Glob "files/crds/*.yaml" }}
+{{- $crd := $.Files.Get $path | fromYaml }}
+{{- if $.Values.crds.keep }}
+{{- $annotations := $crd.metadata.annotations | default dict }}
+{{- $_ := set $annotations "helm.sh/resource-policy" "keep" }}
+{{- $_ := set $crd.metadata "annotations" $annotations }}
+{{- end }}
+---
+# Source: kuberik/{{ $path }}
+{{ toYaml $crd }}
+{{- end }}
+{{- end }}

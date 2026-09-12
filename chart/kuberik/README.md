@@ -7,7 +7,7 @@ A Helm chart that installs the Kuberik rollout-controller and optionally the int
 
 The chart installs:
 
-- 8 CRDs (in `crds/` so Helm applies them before any template): Kuberik core (incl. `RolloutDependency`, v0.9) + openkruise + environment.
+- 8 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
 - rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 10 ClusterRoles and 2 ClusterRoleBindings, metrics Service, Deployment.
 - Optional integration controllers (toggle in `values.yaml`):
   - **datadog-controller** - templated
@@ -48,6 +48,8 @@ helm install kuberik ./chart/kuberik \
 | Key | Default | Description |
 | --- | --- | --- |
 | `namespace` | `kuberik-system` | Namespace the controllers run in |
+| `crds.install` | `true` | Render the CRDs. Set false if you manage them outside the chart |
+| `crds.keep` | `true` | Annotate the CRDs `helm.sh/resource-policy: keep` so `helm uninstall` leaves them (and every CR) in place |
 | `rolloutController.enabled` | `true` | Install the core controller |
 | `rolloutController.image.repository` | `ghcr.io/kuberik/rollout-controller` | Controller image |
 | `rolloutController.image.tag` | _appVersion_ | Image tag override |
@@ -92,13 +94,29 @@ helm install kuberik oci://ghcr.io/kuberik/charts/kuberik \
 
 The file enables: 3-replica rollout-controller with PDB and topology spread, `system-cluster-critical` priority, restricted PSA on the namespace, ServiceMonitor + NetworkPolicy, dashboard with TLS Ingress, Datadog and environment-controller integrations.
 
+## Upgrade
+
+```bash
+helm repo update kuberik
+helm upgrade kuberik kuberik/kuberik -n kuberik-system
+```
+
+Since chart 0.7.0 the CRDs are ordinary chart resources, so `helm upgrade` installs new CRDs and updates existing ones. Charts up to 0.6.1 shipped them in `crds/`, which Helm creates on install and never touches again. Upgrading from a chart ≤ 0.6.1 therefore needs a one-time hand-over of the existing CRDs to the release, otherwise Helm refuses with `invalid ownership metadata`:
+
+```bash
+kubectl get crd -o name | grep -E 'kuberik\.com$' | xargs -I{} kubectl label --overwrite {} app.kubernetes.io/managed-by=Helm
+kubectl get crd -o name | grep -E 'kuberik\.com$' | xargs -I{} kubectl annotate --overwrite {} meta.helm.sh/release-name=kuberik meta.helm.sh/release-namespace=kuberik-system
+```
+
+Use your own release name and namespace. Helm 3.17+ can do the same with `helm upgrade --take-ownership`. See [docs/upgrade.md](../../docs/upgrade.md) for the chart → controller version matrix.
+
 ## Uninstall
 
 ```bash
 helm uninstall kuberik -n kuberik-system
 ```
 
-CRDs are not removed by `helm uninstall`. To delete them:
+CRDs are not removed by `helm uninstall` (they carry `helm.sh/resource-policy: keep`). To delete them:
 
 ```bash
 kubectl delete crd \

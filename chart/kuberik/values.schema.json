@@ -9,6 +9,14 @@
       "type": "string",
       "minLength": 1
     },
+    "crds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "install": { "type": "boolean" },
+        "keep": { "type": "boolean" }
+      }
+    },
     "rolloutController": {
       "type": "object",
       "additionalProperties": true,

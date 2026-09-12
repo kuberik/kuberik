@@ -65,7 +65,7 @@ kubectl apply -f https://github.com/kuberik/rollout-controller/releases/latest/d
 ```bash
 kuberik install --all
 # or, with kustomize
-kubectl apply -k https://github.com/kuberik/kuberik/config/install
+kubectl apply --server-side -k https://github.com/kuberik/kuberik/config/install
 # or, with Helm (gh-pages repo)
 helm repo add kuberik https://kuberik.github.io/kuberik
 helm install kuberik kuberik/kuberik \

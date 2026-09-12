@@ -101,6 +101,12 @@ jobs:
         uses: helm/kind-action@v1
         with:
           cluster_name: kuberik-helm-${{ matrix.profile }}
+      - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo bash
+          flux install \
+            --components=source-controller,kustomize-controller,image-reflector-controller \
+            --network-policy=false
       - name: Install chart (${{ matrix.profile }})
         # Use --create-namespace and disable the chart's namespace template
         # so the two do not collide. The "integrations" profile enables
@@ -158,10 +164,11 @@ jobs:
             grep -E 'my-app|business-hours|christmas-freeze|staging|production'
       - name: Verify helm uninstall is clean
         # Uninstall should leave no Deployments or Services in
-        # kuberik-system (CRDs intentionally remain - that's Helm's
-        # crds/ contract). Existing CRs survive too, which is fine.
+        # kuberik-system. CRDs intentionally remain: they carry
+        # helm.sh/resource-policy: keep. Existing CRs survive too.
         run: |
           set -euo pipefail
+          kubectl get crd rollouts.kuberik.com -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}' | grep -qx keep
           helm uninstall kuberik --namespace kuberik-system --wait --timeout 2m
           if kubectl get deployment -n kuberik-system 2>/dev/null | grep -v 'No resources'; then
             echo "expected no Deployments after uninstall"
@@ -187,6 +194,12 @@ jobs:
         uses: helm/kind-action@v1
         with:
           cluster_name: kuberik-upgrade
+      - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo bash
+          flux install \
+            --components=source-controller,kustomize-controller,image-reflector-controller \
+            --network-policy=false
       - name: Install latest released chart
         run: |
           helm repo add kuberik https://kuberik.github.io/kuberik
@@ -195,16 +208,46 @@ jobs:
             --namespace kuberik-system --create-namespace \
             --set createNamespace=false \
             --wait --timeout 3m
+      - name: Hand CRDs over to the release when they came from crds/
+        # Charts up to 0.6.1 shipped CRDs in crds/, which Helm does not
+        # own. Same one-time step docs/upgrade.md gives users; a no-op
+        # once the released chart is 0.7.0+.
+        run: |
+          set -euo pipefail
+          if ! kubectl get crd rollouts.kuberik.com -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}' | grep -qx kuberik; then
+            kubectl get crd -o name | grep -E 'kuberik\.com$' | xargs -I{} kubectl label --overwrite {} app.kubernetes.io/managed-by=Helm
+            kubectl get crd -o name | grep -E 'kuberik\.com$' | xargs -I{} kubectl annotate --overwrite {} meta.helm.sh/release-name=kuberik meta.helm.sh/release-namespace=kuberik-system
+          fi
       - name: Upgrade to in-tree chart
         run: |
           helm upgrade kuberik chart/kuberik \
             --namespace kuberik-system \
             --set createNamespace=false \
             --wait --timeout 3m
+      - name: Verify the upgrade brought the CRDs along
+        # Every CRD the chart ships must exist and be release-managed
+        # after the upgrade; this is the gap that let 0.6.0 ship without
+        # RolloutDependency.
+        run: |
+          set -euo pipefail
+          for f in chart/kuberik/files/crds/*.yaml; do
+            name=$(grep -m1 '^  name:' "$f" | awk '{print $2}')
+            kubectl get crd "$name" >/dev/null
+            kubectl get crd "$name" -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}' | grep -qx kuberik
+            echo "ok $name"
+          done
       - name: Verify rollout-controller is still Available
+        # The controller exits at once when a watched CRD is missing, so
+        # a crashloop shows up here instead of after the cache-sync timeout.
         run: |
           kubectl wait --for=condition=Available --timeout=120s \
             -n kuberik-system deployment/rollout-controller
+          sleep 20
+          restarts=$(kubectl get pods -n kuberik-system -l app.kubernetes.io/name=rollout-controller \
+            -o jsonpath='{.items[*].status.containerStatuses[*].restartCount}' | tr ' ' '\n' | sort -n | tail -1)
+          echo "restarts=${restarts:-0}"
+          test "${restarts:-0}" -eq 0
+          ! kubectl logs -n kuberik-system deployment/rollout-controller --tail=200 | grep -q 'required CRDs are not installed'
       - name: Run helm test
         run: helm test kuberik --namespace kuberik-system --timeout 3m
       - name: Show installed resources
