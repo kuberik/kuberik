@@ -18,6 +18,15 @@ podSecurityAdmission:
   warn: ""
   version: ""  # e.g. "v1.31"; leaves cluster default if empty
 
+# CustomResourceDefinitions. Rendered as chart resources (templates/crds.yaml)
+# so `helm upgrade` installs new CRDs and updates existing ones.
+crds:
+  # Set to false if you manage the CRDs outside the chart.
+  install: true
+  # Annotate the CRDs with helm.sh/resource-policy: keep so `helm uninstall`
+  # leaves them (and every Rollout, RolloutGate, ... in the cluster) in place.
+  keep: true
+
 # Core rollout-controller settings. Always installed.
 rolloutController:
   enabled: true
