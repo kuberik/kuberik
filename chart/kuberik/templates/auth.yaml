@@ -70,6 +70,9 @@ spec:
             {{- range $auth.apiRoutes }}
             - --api-route={{ . }}
             {{- end }}
+            {{- range $auth.staticRoutes }}
+            - --skip-auth-route={{ . }}
+            {{- end }}
             - --cookie-secure=true
             - --cookie-samesite=lax
             - --cookie-domain={{ $cookieDomain }}

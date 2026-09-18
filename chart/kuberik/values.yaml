@@ -252,6 +252,40 @@ auth:
   # Set to [] to restore the old behaviour.
   apiRoutes:
     - "^/api/"
+  # Path regexes served WITHOUT authentication.
+  #
+  # `apiRoutes` above rescues the dashboard's XHR. It does not rescue the
+  # dashboard's own static bundle, and that is the other half of the same bug.
+  # A stale session makes extAuth 302 *every* unauthenticated request to the
+  # IdP. A browser navigation follows that and signs in - correct. A
+  # SUBRESOURCE cannot: the browser will not follow a cross-origin redirect for
+  # a `<script type=module>`, a stylesheet or a `fetch`, so it is CORS-blocked
+  # and the module never arrives. The tab dies with "Failed to fetch
+  # dynamically imported module" against the IdP's hostname, which reads as
+  # "the dashboard is down".
+  #
+  # It presents as INTERMITTENT, which is what makes it hard to place: the
+  # dashboard code-splits per route, so a tab opened while the session was good
+  # already holds its shell and only breaks later, on the first lazy import
+  # after the session goes stale. A hard reload "fixes" it, because a
+  # navigation can re-auth.
+  #
+  # `apiRoutes` is the wrong tool here - a 401 on a chunk still fails to load
+  # it, so the tab stays broken, just differently. Serving these lets the shell
+  # boot and show the session-expired state the dashboard already renders from
+  # the 401s on /api/.
+  #
+  # Safe to serve unauthenticated: this is the dashboard's compiled,
+  # content-hashed frontend and its icons. `_app/env.js` is `export const
+  # env={}`, `_app/version.json` is a build timestamp, and `index.html` is a
+  # static shell - no ids, secrets or tokens. Every byte of real data still
+  # arrives over /api/, which stays gated.
+  #
+  # The regexes are anchored so this cannot widen into a general bypass.
+  # Set to [] to gate the static bundle too (and accept the above).
+  staticRoutes:
+    - "^/_app/"
+    - "^/(favicon\\.(ico|png)|apple-touch-icon\\.png|icon-(192|512)\\.png|logo\\.svg|manifest\\.json)$"
   # Extra command-line args appended to oauth2-proxy. Useful for tweaks
   # like --whitelist-domain, --upstream-timeout, etc.
   extraArgs: []
