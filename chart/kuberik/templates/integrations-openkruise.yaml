@@ -330,7 +330,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: {{ printf "%s:%s" .Values.integrations.openkruise.image.repository (.Values.integrations.openkruise.image.tag | default "v0.4.0") | quote }}
+        image: {{ printf "%s:%s" .Values.integrations.openkruise.image.repository (.Values.integrations.openkruise.image.tag | default "v0.4.1") | quote }}
         livenessProbe:
           httpGet:
             path: /healthz
