@@ -1,0 +1,170 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: releaseslices.kuberik.com
+spec:
+  group: kuberik.com
+  names:
+    kind: ReleaseSlice
+    listKind: ReleaseSliceList
+    plural: releaseslices
+    shortNames:
+    - relslice
+    singular: releaseslice
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .source
+      name: Source
+      type: string
+    - jsonPath: .sealed
+      name: Sealed
+      type: boolean
+    - jsonPath: .newestCreated
+      name: Newest
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ReleaseSlice holds a bounded chunk of a ReleaseSource catalogue. Like
+          EndpointSlice it has no spec/status. Labelled kuberik.com/release-source,
+          owned (controller=true) by its ReleaseSource, named <source>-<5-digit index>.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          newestCreated:
+            format: date-time
+            type: string
+          oldestCreated:
+            format: date-time
+            type: string
+          releases:
+            description: Releases sorted by sequence ascending.
+            items:
+              description: |-
+                Release is one catalogue entry. It is a superset of rollout-controller's
+                VersionInfo (tag, digest, version, revision, created, requires,
+                metadataUnresolved).
+
+                CEL cost: Requires and Metadata sit inside a list with maxItems 1000, so
+                their rules are written as a single self.all(k, ...) over a bounded map
+                (maxProperties 32 / 8) and string maxLengths are declared on the values'
+                schema so the apiserver can estimate cost.
+              properties:
+                created:
+                  description: Created is source-provided, else firstSeen (createdObserved=true).
+                  format: date-time
+                  type: string
+                createdObserved:
+                  type: boolean
+                digest:
+                  maxLength: 140
+                  type: string
+                firstSeen:
+                  description: FirstSeen is when this catalogue first admitted the
+                    release.
+                  format: date-time
+                  type: string
+                metadata:
+                  additionalProperties:
+                    type: string
+                  description: Metadata is source-specific and small; OCI v1 leaves
+                    it empty.
+                  maxProperties: 8
+                  type: object
+                  x-kubernetes-validations:
+                  - message: metadata keys must be at most 63 and values at most 256
+                      characters
+                    rule: self.all(k, size(k) <= 63 && size(self[k]) <= 256)
+                metadataUnresolved:
+                  type: boolean
+                requires:
+                  additionalProperties:
+                    type: string
+                  description: 'Requires: keys <= 64, values <= 256 (same as VersionInfo.Requires).'
+                  maxProperties: 32
+                  type: object
+                  x-kubernetes-validations:
+                  - message: requires keys must be at most 64 and values at most 256
+                      characters
+                    rule: self.all(k, size(k) <= 64 && size(self[k]) <= 256)
+                revision:
+                  description: Revision is a git SHA by contract.
+                  maxLength: 128
+                  type: string
+                sequence:
+                  description: |-
+                    Sequence is the admission order. Readers sort by it (not by created).
+                    Sequence order equals policy order: incremental releases get max+1..,
+                    backfilled releases get min-1.. going down. Never renumbered.
+                  format: int64
+                  type: integer
+                tag:
+                  description: Tag is the deployable reference. Unique per source.
+                  maxLength: 128
+                  minLength: 1
+                  type: string
+                url:
+                  description: URL of the release page.
+                  maxLength: 512
+                  type: string
+                version:
+                  maxLength: 128
+                  type: string
+              required:
+              - created
+              - firstSeen
+              - sequence
+              - tag
+              type: object
+            maxItems: 1000
+            type: array
+            x-kubernetes-list-type: atomic
+          sealed:
+            default: false
+            description: |-
+              Sealed slices take no new releases. Once true stays true.
+              Always serialised (no omitempty) and defaulted to false so the
+              transition rule also sees true -> false from clients that drop zero values.
+            type: boolean
+            x-kubernetes-validations:
+            - message: sealed cannot go from true to false
+              rule: '!oldSelf || self'
+          source:
+            description: Source is the owning ReleaseSource name. Immutable.
+            maxLength: 253
+            minLength: 1
+            type: string
+            x-kubernetes-validations:
+            - message: source is immutable
+              rule: self == oldSelf
+        required:
+        - releases
+        - sealed
+        - source
+        type: object
+    served: true
+    storage: true
+    subresources: {}

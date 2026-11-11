@@ -7,8 +7,9 @@ A Helm chart that installs the Kuberik rollout-controller and optionally the int
 
 The chart installs:
 
-- 8 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
+- 10 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + release-controller (`ReleaseSource`, `ReleaseSlice`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
 - rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 10 ClusterRoles and 2 ClusterRoleBindings, metrics Service, Deployment.
+- release-controller (`releaseController.enabled`, on by default; Rollouts need it for releases): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole (aggregated into `view`) and a source-editor ClusterRole (aggregated into `edit`), the reader bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
 - Optional integration controllers (toggle in `values.yaml`):
   - **datadog-controller** - templated
   - **openkruise-controller** - templated
@@ -55,6 +56,9 @@ helm install kuberik ./chart/kuberik \
 | `rolloutController.image.tag` | _appVersion_ | Image tag override |
 | `rolloutController.replicas` | `1` | Number of controller replicas |
 | `rolloutController.logLevel` | `info` | Controller log level |
+| `releaseController.enabled` | `true` | Install release-controller (reconciles `ReleaseSource` objects that Rollouts reference via `spec.releaseSourceRef`) |
+| `releaseController.image.repository` | `ghcr.io/kuberik/release-controller` | Controller image |
+| `releaseController.image.tag` | _pinned by template_ | Image tag override |
 | `integrations.datadog.enabled` | `false` | Install datadog-controller |
 | `integrations.prometheus.enabled` | `false` | Install prometheus-controller |
 | `integrations.openkruise.enabled` | `false` | Install openkruise-controller |
@@ -126,11 +130,13 @@ kubectl delete crd \
   rolloutschedules.kuberik.com \
   clusterrolloutschedules.kuberik.com \
   rolloutdependencies.kuberik.com \
+  releasesources.kuberik.com \
+  releaseslices.kuberik.com \
   rollouttests.rollout.kuberik.com \
   environments.environments.kuberik.com
 ```
 
-This also deletes every `Rollout`, `RolloutGate`, `HealthCheck`, `RolloutTest`, and `Environment` in the cluster.
+This also deletes every `Rollout`, `RolloutGate`, `HealthCheck`, `RolloutTest`, `Environment`, `ReleaseSource`, and `ReleaseSlice` in the cluster.
 
 ### OIDC-gated dashboard (Gateway API)
 

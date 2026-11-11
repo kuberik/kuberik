@@ -1,0 +1,329 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: releasesources.kuberik.com
+spec:
+  group: kuberik.com
+  names:
+    kind: ReleaseSource
+    listKind: ReleaseSourceList
+    plural: releasesources
+    shortNames:
+    - relsrc
+    singular: releasesource
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.newest.tag
+      name: Newest
+      type: string
+    - jsonPath: .status.count
+      name: Count
+      type: integer
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ReleaseSource is the Schema for the releasesources API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ReleaseSourceSpec is a discriminated union: exactly one source member must
+              be set. v1 has only oci.
+            properties:
+              interval:
+                default: 1m
+                description: Interval between syncs. Jittered +-10% by the controller.
+                pattern: ^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$
+                type: string
+                x-kubernetes-validations:
+                - message: interval must be at least 10s
+                  rule: duration(self) >= duration('10s')
+              oci:
+                description: OCI lists tags of an OCI repository.
+                properties:
+                  filterTags:
+                    description: FilterTags has the Flux ImagePolicy shape.
+                    properties:
+                      extract:
+                        description: Extract is a capture-group expression applied
+                          before ordering.
+                        type: string
+                      pattern:
+                        description: Pattern is a regular expression tags must match.
+                        type: string
+                    type: object
+                  image:
+                    description: Image is the repository, e.g. ghcr.io/org/app.
+                    maxLength: 512
+                    type: string
+                  imagePolicyRef:
+                    description: |-
+                      ImagePolicyRef reads image, secretRef, filterTags and policy from an
+                      existing Flux ImagePolicy and its ImageRepository (spec only); policy
+                      and filterTags must not be set with it.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  insecure:
+                    description: Insecure allows plain HTTP registries.
+                    type: boolean
+                  policy:
+                    description: |-
+                      Policy has the Flux ImagePolicy shape. Required with image: release
+                      order and admission are defined by it (with imagePolicyRef the
+                      ImagePolicy carries it).
+                    maxProperties: 1
+                    properties:
+                      alphabetical:
+                        description: AlphabeticalPolicy orders tags alphabetically.
+                        properties:
+                          order:
+                            default: asc
+                            enum:
+                            - asc
+                            - desc
+                            type: string
+                        type: object
+                      numerical:
+                        description: NumericalPolicy orders tags numerically.
+                        properties:
+                          order:
+                            default: asc
+                            enum:
+                            - asc
+                            - desc
+                            type: string
+                        type: object
+                      semver:
+                        description: SemVerPolicy orders tags by semantic version
+                          within a range.
+                        properties:
+                          range:
+                            minLength: 1
+                            type: string
+                        required:
+                        - range
+                        type: object
+                    type: object
+                  secretRef:
+                    description: SecretRef names a kubernetes.io/dockerconfigjson
+                      Secret.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
+                x-kubernetes-validations:
+                - message: exactly one of image or imagePolicyRef must be set
+                  rule: has(self.image) != has(self.imagePolicyRef)
+                - message: policy is required when image is set
+                  rule: '!has(self.image) || has(self.policy)'
+                - message: policy and filterTags come from the ImagePolicy and must
+                    not be set with imagePolicyRef
+                  rule: '!has(self.imagePolicyRef) || (!has(self.policy) && !has(self.filterTags))'
+              retention:
+                default: {}
+                description: Retention controls when whole old slices are dropped.
+                properties:
+                  days:
+                    default: 7
+                    description: Days after which a release counts as expired. 0 means
+                      age never expires anything.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  minCount:
+                    default: 30
+                    description: MinCount is the number of newest releases always
+                      kept.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                type: object
+              suspend:
+                description: Suspend stops syncing while true.
+                type: boolean
+            type: object
+          status:
+            description: ReleaseSourceStatus defines the observed state of ReleaseSource.
+            properties:
+              artifact:
+                description: Artifact metadata of the newest release.
+                properties:
+                  description:
+                    maxLength: 2048
+                    type: string
+                  sourceURL:
+                    maxLength: 512
+                    type: string
+                  title:
+                    maxLength: 256
+                    type: string
+                  type:
+                    maxLength: 256
+                    type: string
+                type: object
+              backfillComplete:
+                description: |-
+                  BackfillComplete is true once the catalogue reaches back to the
+                  retention window (or the registry has no older tags). While false the
+                  controller keeps walking older tags in policy-descending order.
+                type: boolean
+              conditions:
+                description: 'Conditions: Ready, SourceReachable, Syncing.'
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              count:
+                description: Count of releases in the catalogue.
+                format: int32
+                type: integer
+              cursor:
+                description: Cursor is source-opaque (e.g. an ETag).
+                maxLength: 256
+                type: string
+              lastSyncTime:
+                format: date-time
+                type: string
+              newest:
+                description: Newest is the newest release in the catalogue.
+                properties:
+                  created:
+                    format: date-time
+                    type: string
+                  revision:
+                    maxLength: 128
+                    type: string
+                  tag:
+                    type: string
+                required:
+                - tag
+                type: object
+              nextSliceIndex:
+                format: int32
+                type: integer
+              observedGeneration:
+                format: int64
+                type: integer
+              openSlice:
+                description: OpenSlice is the name of the slice taking new releases
+                  ("" if none).
+                type: string
+              sliceCount:
+                description: |-
+                  SliceCount is the number of ReleaseSlices of this source. Slice names
+                  are not listed (an unbounded catalogue would overflow any list bound);
+                  readers select slices by the kuberik.com/release-source label.
+                format: int32
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: name must be at most 230 characters so slice names fit 253
+          rule: self.metadata.name.size() <= 230
+        - message: exactly one source must be set
+          rule: has(self.spec.oci)
+    served: true
+    storage: true
+    subresources:
+      status: {}

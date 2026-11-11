@@ -64,6 +64,29 @@ rolloutController:
   # corev1.EnvVar shape - supports valueFrom: { secretKeyRef|configMapKeyRef }.
   extraEnv: []
 
+# release-controller: watches OCI registries and publishes ReleaseSource /
+# ReleaseSlice objects that Rollouts reference through spec.releaseSourceRef.
+# Required for Rollouts to receive releases. Its CRDs ship with
+# crds.install regardless of this toggle.
+releaseController:
+  enabled: true
+  image:
+    repository: ghcr.io/kuberik/release-controller
+    # Defaults to the version pinned by the template when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  # Extra command-line args appended to /manager.
+  extraArgs: []
+  extraEnv: []
+
 # Prometheus Operator ServiceMonitor for scraping controller metrics.
 metrics:
   serviceMonitor:
