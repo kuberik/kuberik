@@ -40,6 +40,30 @@ kubectl apply --server-side -f kuberik/crds/
 
 `--server-side` is required: the `RolloutTest` CRD is larger than the 256 KiB annotation limit of client-side `kubectl apply`.
 
+## Moving Rollouts to ReleaseSources (chart 0.8.0)
+
+Chart 0.8.0 installs the release-controller by default. A Rollout gets its releases from a `ReleaseSource` named in `spec.releaseSourceRef`; `spec.releasesImagePolicy` is ignored, and a Rollout without `releaseSourceRef` reports the condition `ReleaseSourceRequired` and receives no releases. This applies once the chart runs a rollout-controller release that has `releaseSourceRef`.
+
+Migrate before or together with that upgrade:
+
+1. Create one `ReleaseSource` per app, in the Rollout's namespace. To keep reading an existing Flux `ImagePolicy`, reference it:
+
+   ```yaml
+   apiVersion: kuberik.com/v1alpha1
+   kind: ReleaseSource
+   metadata:
+     name: my-app
+   spec:
+     oci:
+       imagePolicyRef:
+         name: my-app
+   ```
+
+   Or describe the image directly with `oci.image` and `oci.policy` (see `examples/basic-rollout/releasesource.yaml`). `imagePolicyRef` cannot be combined with `policy` or `filterTags`.
+2. Wait until the `ReleaseSource` is Ready.
+3. Point each Rollout at it with `spec.releaseSourceRef: {name: my-app}`.
+4. Keep the Flux `ImagePolicy` and `ImageRepository` objects until releases flow through the `ReleaseSource`; only then remove them, unless a source still references them through `imagePolicyRef`.
+
 ## Chart -> controller version matrix
 
 | Chart version | rollout-controller | release | datadog | openkruise | environment | dashboard |
