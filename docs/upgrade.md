@@ -52,6 +52,7 @@ kubectl apply --server-side -f kuberik/crds/
 | 0.6.0 | v0.9.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 | 0.6.1 | v0.9.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 | 0.7.0 | v0.9.2 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| 0.7.1 | v0.9.2 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 
 0.6.0 shipped rollout-controller v0.9.0 without the `RolloutDependency` CRD and RBAC; use 0.6.1 or newer. 0.7.0 turns the CRDs into chart resources; coming from 0.6.1 or older needs the one-time hand-over above.
 
