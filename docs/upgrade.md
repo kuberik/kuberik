@@ -42,18 +42,19 @@ kubectl apply --server-side -f kuberik/crds/
 
 ## Chart -> controller version matrix
 
-| Chart version | rollout-controller | datadog | openkruise | environment | dashboard |
-| --- | --- | --- | --- | --- | --- |
-| 0.2.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
-| 0.3.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
-| 0.4.x | v0.7.0 | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
-| 0.5.0 | v0.8.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.0 |
-| 0.5.1 | v0.8.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.2 |
-| 0.6.0 | v0.9.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
-| 0.6.1 | v0.9.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
-| 0.7.0 | v0.9.2 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| Chart version | rollout-controller | release | datadog | openkruise | environment | dashboard |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.2.x | v0.7.0 | - | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
+| 0.3.x | v0.7.0 | - | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
+| 0.4.x | v0.7.0 | - | v0.1.0 | v0.3.3 | v0.1.5 | v0.7.7 |
+| 0.5.0 | v0.8.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.0 |
+| 0.5.1 | v0.8.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.8.2 |
+| 0.6.0 | v0.9.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| 0.6.1 | v0.9.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| 0.7.0 | v0.9.2 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| 0.8.0 | v0.9.2 | v0.1.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 
-0.6.0 shipped rollout-controller v0.9.0 without the `RolloutDependency` CRD and RBAC; use 0.6.1 or newer. 0.7.0 turns the CRDs into chart resources; coming from 0.6.1 or older needs the one-time hand-over above.
+0.6.0 shipped rollout-controller v0.9.0 without the `RolloutDependency` CRD and RBAC; use 0.6.1 or newer. 0.7.0 turns the CRDs into chart resources; coming from 0.6.1 or older needs the one-time hand-over above. 0.8.0 adds the release-controller (`releaseController.enabled`, off by default) and its `ReleaseSource` / `ReleaseSlice` CRDs; they are new, so the upgrade from 0.7.x needs no hand-over.
 
 Always check the release notes of the chart version you are upgrading to for any deviations from this baseline.
 

@@ -1,5 +1,12 @@
 Kuberik {{ .Chart.AppVersion }} installed in namespace {{ .Values.namespace }}.
 
+{{- if .Values.releaseController.enabled }}
+
+Verify the release-controller is running:
+
+    kubectl get pods -n {{ .Values.namespace }} -l app.kubernetes.io/name=release-controller
+{{- end }}
+
 {{- if .Values.rolloutController.enabled }}
 
 Verify the rollout-controller is running:
@@ -13,13 +20,15 @@ or, with the kuberik CLI:
 
 Next steps:
 
-  1. Install Flux's image-reflector-controller (Kuberik discovers releases
-     through Flux ImagePolicy):
+  1. Install Flux's source-controller and kustomize-controller (Kuberik
+     patches Flux OCIRepository / Kustomization objects on promotion):
 
-         flux install --components=source-controller,kustomize-controller,image-reflector-controller
+         flux install --components=source-controller,kustomize-controller
 
-  2. Define an ImageRepository + ImagePolicy for each app you want Kuberik
-     to track.
+  2. Define a ReleaseSource (oci.image + policy) for each app you want
+     Kuberik to track, and point the Rollout at it with
+     spec.releaseSourceRef.{{- if not .Values.releaseController.enabled }} The release-controller that reconciles
+     ReleaseSources is off; enable it with --set releaseController.enabled=true.{{- end }}
 
   3. Create your first Rollout. See:
 

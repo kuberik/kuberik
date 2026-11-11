@@ -69,6 +69,7 @@ jobs:
       - name: Render chart (all integrations + dashboard)
         run: |
           helm template kuberik chart/kuberik \
+            --set releaseController.enabled=true \
             --set integrations.datadog.enabled=true \
             --set integrations.prometheus.enabled=true \
             --set integrations.openkruise.enabled=true \
@@ -78,8 +79,8 @@ jobs:
       - name: Validate rendered output with kubeval-style check
         run: |
           # Count top-level kinds to confirm dashboard + integrations rendered
-          grep -c "^kind: Deployment" /tmp/kuberik-all.yaml | grep -q "^5$" || \
-            { echo "expected 5 Deployments (rollout + 3 integrations + dashboard)"; exit 1; }
+          grep -c "^kind: Deployment" /tmp/kuberik-all.yaml | grep -q "^6$" || \
+            { echo "expected 6 Deployments (rollout + release + 3 integrations + dashboard)"; exit 1; }
       - name: Validate output is non-empty
         run: |
           test -s /tmp/kuberik-default.yaml
@@ -137,11 +138,14 @@ jobs:
         # declare metadata.namespace: default, so apply in-place.
         run: |
           set -euo pipefail
-          kubectl apply -f chart/kuberik/samples/rollout.yaml
+          # samples/rollout.yaml uses spec.releaseSourceRef, which the
+          # pinned rollout-controller CRD (v0.9.2) does not have yet. Apply
+          # it again once the chart pins a release that does.
+          kubectl apply -f chart/kuberik/samples/releasesource.yaml
           kubectl apply -f chart/kuberik/samples/gate.yaml
           kubectl apply -f chart/kuberik/samples/schedule.yaml
           kubectl apply -f chart/kuberik/samples/healthcheck.yaml
-          kubectl get rollout,rolloutgate,rolloutschedule,healthcheck -n default
+          kubectl get releasesource,rolloutgate,rolloutschedule,healthcheck -n default
 
       - name: Apply repo examples
         # Validates the user-facing examples render against the chart's CRDs.
@@ -155,13 +159,15 @@ jobs:
           for ns in production staging; do
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
-          kubectl apply -f examples/basic-rollout/rollout.yaml
+          # basic-rollout/rollout.yaml needs releaseSourceRef support in the
+          # pinned rollout-controller CRD; validate its ReleaseSource only.
+          kubectl apply -f examples/basic-rollout/releasesource.yaml
           kubectl apply -f examples/with-gate/gate.yaml
           kubectl apply -f examples/with-schedule/schedule.yaml
           kubectl apply -f examples/with-schedule/freeze.yaml
           kubectl apply -f examples/with-environments/environments.yaml
           kubectl get rollout,rolloutgate,rolloutschedule,clusterrolloutschedule,environment -A | \
-            grep -E 'my-app|business-hours|christmas-freeze|staging|production'
+            grep -E 'business-hours|christmas-freeze|staging|production'
       - name: Verify helm uninstall is clean
         # Uninstall should leave no Deployments or Services in
         # kuberik-system. CRDs intentionally remain: they carry

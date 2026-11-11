@@ -1,0 +1,259 @@
+{{- if .Values.releaseController.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: release-controller
+  name: release-controller-controller-manager
+  namespace: {{ .Values.namespace }}
+{{- with .Values.imagePullSecrets }}
+imagePullSecrets:
+{{ toYaml . | indent 2 }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: release-controller
+  name: release-controller-leader-election-role
+  namespace: {{ .Values.namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: release-controller
+  name: release-controller-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - image.toolkit.fluxcd.io
+  resources:
+  - imagepolicies
+  - imagerepositories
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kuberik.com
+  resources:
+  - releaseslices
+  - releasesources
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kuberik.com
+  resources:
+  - releasesources/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kuberik.com
+  resources:
+  - releasesources/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+# Read access to ReleaseSources and ReleaseSlices; aggregates into the
+# built-in "view" role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: release-controller
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+  name: release-controller-reader
+rules:
+- apiGroups: ["kuberik.com"]
+  resources: ["releasesources", "releaseslices"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: release-controller
+  name: release-controller-leader-election-rolebinding
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: release-controller-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: release-controller-controller-manager
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: release-controller
+  name: release-controller-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: release-controller-manager-role
+subjects:
+- kind: ServiceAccount
+  name: release-controller-controller-manager
+  namespace: {{ .Values.namespace }}
+{{- /*
+Readers: the service accounts of the other components that read
+ReleaseSources and ReleaseSlices. Binding a ClusterRole to a service
+account that is not installed is harmless.
+*/}}
+{{- $readers := dict "rollout-controller" "rollout-controller-controller-manager" "rollout-dashboard" "rollout-dashboard" "environment-controller" "environment-controller-manager" }}
+{{- range $name, $sa := $readers }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: release-controller
+  name: release-controller-reader-{{ $name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: release-controller-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ $sa }}
+  namespace: {{ $.Values.namespace }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-controller
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kuberik.labels" . | nindent 4 }}
+    app.kubernetes.io/component: release-controller
+    control-plane: controller-manager
+spec:
+  replicas: {{ .Values.releaseController.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: release-controller
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: release-controller
+        control-plane: controller-manager
+    spec:
+      serviceAccountName: release-controller-controller-manager
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: manager
+          image: {{ printf "%s:%s" .Values.releaseController.image.repository (.Values.releaseController.image.tag | default "v0.1.0") | quote }}
+          imagePullPolicy: {{ .Values.releaseController.image.pullPolicy }}
+          command: ["/manager"]
+          args:
+            - --leader-elect
+            - --health-probe-bind-address=:8081
+            {{- with .Values.releaseController.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.releaseController.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.releaseController.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
