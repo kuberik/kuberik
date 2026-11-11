@@ -127,6 +127,22 @@ rules:
   resources: ["releasesources", "releaseslices"]
   verbs: ["get", "list", "watch"]
 ---
+# Write access to ReleaseSources; aggregates into the built-in "edit" role.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: release-controller
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+  name: release-controller-source-editor
+rules:
+- apiGroups: ["kuberik.com"]
+  resources: ["releasesources"]
+  verbs: ["create", "update", "patch", "delete"]
+- apiGroups: ["kuberik.com"]
+  resources: ["releasesources/status"]
+  verbs: ["get"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

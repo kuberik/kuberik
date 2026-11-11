@@ -9,7 +9,7 @@ The chart installs:
 
 - 10 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + release-controller (`ReleaseSource`, `ReleaseSlice`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
 - rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 10 ClusterRoles and 2 ClusterRoleBindings, metrics Service, Deployment.
-- release-controller (`releaseController.enabled`, on by default; Rollouts need it for releases): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
+- release-controller (`releaseController.enabled`, on by default; Rollouts need it for releases): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole (aggregated into `view`) and a source-editor ClusterRole (aggregated into `edit`), the reader bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
 - Optional integration controllers (toggle in `values.yaml`):
   - **datadog-controller** - templated
   - **openkruise-controller** - templated
