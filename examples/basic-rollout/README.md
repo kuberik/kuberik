@@ -23,7 +23,7 @@ kuberik get rollouts
 kubectl describe rollout my-app
 ```
 
-The release-controller must be installed (`helm install ... --set releaseController.enabled=true`). When a new image tag matching the semver range appears in `ghcr.io/myorg/my-app`, the Rollout will pick it up, wait for any gates to pass, patch the OCIRepository tag, and bake for 10 minutes before recording the release in its version history.
+The kuberik chart installs the release-controller by default. When a new image tag matching the semver range appears in `ghcr.io/myorg/my-app`, the Rollout will pick it up, wait for any gates to pass, patch the OCIRepository tag, and bake for 10 minutes before recording the release in its version history.
 
 ## Next steps
 

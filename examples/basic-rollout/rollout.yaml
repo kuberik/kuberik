@@ -1,9 +1,8 @@
 # A minimal Kuberik rollout that tracks releases of a single image and
 # promotes them through a 10-minute bake period.
 #
-# Requires the release-controller (helm install ... --set
-# releaseController.enabled=true) and the ReleaseSource in
-# releasesource.yaml.
+# Requires the release-controller (installed by the kuberik chart by
+# default) and the ReleaseSource in releasesource.yaml.
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: Rollout

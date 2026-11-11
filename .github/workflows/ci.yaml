@@ -69,7 +69,6 @@ jobs:
       - name: Render chart (all integrations + dashboard)
         run: |
           helm template kuberik chart/kuberik \
-            --set releaseController.enabled=true \
             --set integrations.datadog.enabled=true \
             --set integrations.prometheus.enabled=true \
             --set integrations.openkruise.enabled=true \
@@ -109,6 +108,8 @@ jobs:
             --components=source-controller,kustomize-controller,image-reflector-controller \
             --network-policy=false
       - name: Install chart (${{ matrix.profile }})
+        # releaseController.enabled=false until ghcr.io/kuberik/release-controller
+        # publishes its first tag; drop the flag then.
         # Use --create-namespace and disable the chart's namespace template
         # so the two do not collide. The "integrations" profile enables
         # datadog, openkruise, environment, and dashboard so all
@@ -124,6 +125,7 @@ jobs:
           helm install kuberik chart/kuberik \
             --namespace kuberik-system --create-namespace \
             --set createNamespace=false \
+            --set releaseController.enabled=false \
             $extra_flags \
             --wait --timeout 5m
       - name: Verify rollout-controller is Available
@@ -229,6 +231,7 @@ jobs:
           helm upgrade kuberik chart/kuberik \
             --namespace kuberik-system \
             --set createNamespace=false \
+            --set releaseController.enabled=false \
             --wait --timeout 3m
       - name: Verify the upgrade brought the CRDs along
         # Every CRD the chart ships must exist and be release-managed

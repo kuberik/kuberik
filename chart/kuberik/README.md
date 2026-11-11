@@ -9,7 +9,7 @@ The chart installs:
 
 - 10 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + release-controller (`ReleaseSource`, `ReleaseSlice`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
 - rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 10 ClusterRoles and 2 ClusterRoleBindings, metrics Service, Deployment.
-- Optional release-controller (`releaseController.enabled`): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
+- release-controller (`releaseController.enabled`, on by default; Rollouts need it for releases): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
 - Optional integration controllers (toggle in `values.yaml`):
   - **datadog-controller** - templated
   - **openkruise-controller** - templated
@@ -56,7 +56,7 @@ helm install kuberik ./chart/kuberik \
 | `rolloutController.image.tag` | _appVersion_ | Image tag override |
 | `rolloutController.replicas` | `1` | Number of controller replicas |
 | `rolloutController.logLevel` | `info` | Controller log level |
-| `releaseController.enabled` | `false` | Install release-controller (reconciles `ReleaseSource` objects that Rollouts reference via `spec.releaseSourceRef`) |
+| `releaseController.enabled` | `true` | Install release-controller (reconciles `ReleaseSource` objects that Rollouts reference via `spec.releaseSourceRef`) |
 | `releaseController.image.repository` | `ghcr.io/kuberik/release-controller` | Controller image |
 | `releaseController.image.tag` | _pinned by template_ | Image tag override |
 | `integrations.datadog.enabled` | `false` | Install datadog-controller |
@@ -176,7 +176,7 @@ To gate another service later, add its namespace to `auth.allowedConsumerNamespa
 ```bash
 helm install kuberik ./chart/kuberik \
   --namespace kuberik-system --create-namespace \
-  --set releaseController.enabled=true \
+  \
   --set integrations.datadog.enabled=true \
   --set integrations.openkruise.enabled=true \
   --set integrations.environment.enabled=true

@@ -66,9 +66,10 @@ rolloutController:
 
 # release-controller: watches OCI registries and publishes ReleaseSource /
 # ReleaseSlice objects that Rollouts reference through spec.releaseSourceRef.
-# Its CRDs ship with crds.install regardless of this toggle.
+# Required for Rollouts to receive releases. Its CRDs ship with
+# crds.install regardless of this toggle.
 releaseController:
-  enabled: false
+  enabled: true
   image:
     repository: ghcr.io/kuberik/release-controller
     # Defaults to the version pinned by the template when empty.
