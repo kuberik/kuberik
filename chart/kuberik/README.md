@@ -136,7 +136,7 @@ kubectl delete crd \
   environments.environments.kuberik.com
 ```
 
-This also deletes every `Rollout`, `RolloutGate`, `HealthCheck`, `RolloutTest`, and `Environment`, `ReleaseSource`, and `ReleaseSlice` in the cluster.
+This also deletes every `Rollout`, `RolloutGate`, `HealthCheck`, `RolloutTest`, `Environment`, `ReleaseSource`, and `ReleaseSlice` in the cluster.
 
 ### OIDC-gated dashboard (Gateway API)
 
@@ -176,7 +176,6 @@ To gate another service later, add its namespace to `auth.allowedConsumerNamespa
 ```bash
 helm install kuberik ./chart/kuberik \
   --namespace kuberik-system --create-namespace \
-  \
   --set integrations.datadog.enabled=true \
   --set integrations.openkruise.enabled=true \
   --set integrations.environment.enabled=true
