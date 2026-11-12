@@ -198,6 +198,15 @@ rules:
 - apiGroups:
   - kuberik.com
   resources:
+  - releaseslices
+  - releasesources
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kuberik.com
+  resources:
   - approvalpolicies/finalizers
   - clusterapprovalpolicies/finalizers
   verbs:
