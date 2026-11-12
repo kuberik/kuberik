@@ -7,8 +7,9 @@ A Helm chart that installs the Kuberik rollout-controller and optionally the int
 
 The chart installs:
 
-- 8 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
-- rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 10 ClusterRoles and 2 ClusterRoleBindings, metrics Service, Deployment.
+- 11 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency`, v0.9, and the manual-approval kinds `ApprovalPolicy`, `ClusterApprovalPolicy`, `RolloutApproval`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
+- rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 11 ClusterRoles (incl. `kuberik-rollout-approver`) and 3 ClusterRoleBindings, metrics Service, Deployment.
+- On Kubernetes 1.30+, two ValidatingAdmissionPolicies with bindings (see [Manual approvals](#manual-approvals)).
 - Optional integration controllers (toggle in `values.yaml`):
   - **datadog-controller** - templated
   - **openkruise-controller** - templated
@@ -50,6 +51,7 @@ helm install kuberik ./chart/kuberik \
 | `namespace` | `kuberik-system` | Namespace the controllers run in |
 | `crds.install` | `true` | Render the CRDs. Set false if you manage them outside the chart |
 | `crds.keep` | `true` | Annotate the CRDs `helm.sh/resource-policy: keep` so `helm uninstall` leaves them (and every CR) in place |
+| `admissionPolicies.enabled` | `true` | Render the approval ValidatingAdmissionPolicies (only on clusters serving `ValidatingAdmissionPolicy`, Kubernetes 1.30+) |
 | `rolloutController.enabled` | `true` | Install the core controller |
 | `rolloutController.image.repository` | `ghcr.io/kuberik/rollout-controller` | Controller image |
 | `rolloutController.image.tag` | _appVersion_ | Image tag override |
@@ -79,6 +81,22 @@ helm install kuberik ./chart/kuberik \
 | `createNamespace` | `true` | Have the chart create the Namespace. Set false when using `helm install --create-namespace` |
 
 See [values.yaml](values.yaml) for the full schema.
+
+## Manual approvals
+
+The chart ships the `ApprovalPolicy`, `ClusterApprovalPolicy` and `RolloutApproval` CRDs and the controller RBAC for them. It also creates the ClusterRole `kuberik-rollout-approver` (`get/list/watch/create/delete` on `rolloutapprovals`). The role is not aggregated into `edit` or `admin`; bind it per namespace, for example:
+
+```bash
+kubectl -n shop create rolebinding shop-approvers \
+  --clusterrole=kuberik-rollout-approver --group=shop-oncall
+```
+
+On Kubernetes 1.30+ (where `ValidatingAdmissionPolicy` is GA) the chart also renders two policies, each with a `Deny` binding:
+
+- `kuberik-rolloutapproval-by` - `approval.kuberik.com/by` on a RolloutApproval must equal the requesting user and is immutable.
+- `kuberik-approval-gate-guard` - only the rollout-controller service account (`system:serviceaccount:<namespace>:rollout-controller-controller-manager`, namespace from `namespace`), the garbage collector and the namespace controller may create, change or delete a RolloutGate owned by an approval policy.
+
+On older clusters, or with `admissionPolicies.enabled=false`, approvals still work but `by` is unverified, policy-owned gates can be edited by anyone who may update RolloutGates, and the dashboard does not show `by` (it checks for the `kuberik-rolloutapproval-by` binding at startup).
 
 ## Common scenarios
 
