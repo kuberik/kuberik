@@ -186,6 +186,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - kuberik.com
+  resources:
+  - approvalpolicies
+  - clusterapprovalpolicies
+  - rolloutapprovals
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - kuberik.com
+  resources:
+  - approvalpolicies/finalizers
+  - clusterapprovalpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - kuberik.com
+  resources:
+  - approvalpolicies/status
+  - clusterapprovalpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - kustomize.toolkit.fluxcd.io
   resources:
   - kustomizations
@@ -354,6 +380,28 @@ rules:
   - rolloutgates/status
   verbs:
   - get
+---
+# Explicit binding only: deliberately not aggregated into edit/admin, so
+# editing a namespace does not imply approving its builds. Bind it with a
+# RoleBinding per namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: rollout-controller
+  name: kuberik-rollout-approver
+rules:
+- apiGroups:
+  - kuberik.com
+  resources:
+  - rolloutapprovals
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

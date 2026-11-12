@@ -27,6 +27,14 @@ crds:
   # leaves them (and every Rollout, RolloutGate, ... in the cluster) in place.
   keep: true
 
+# ValidatingAdmissionPolicies for manual approvals: they verify
+# approval.kuberik.com/by on RolloutApprovals and stop anyone but the
+# rollout-controller editing a policy-owned RolloutGate. Rendered only on
+# clusters that serve ValidatingAdmissionPolicy (Kubernetes 1.30+). Without
+# them `by` is unverified and the dashboard does not show it.
+admissionPolicies:
+  enabled: true
+
 # Core rollout-controller settings. Always installed.
 rolloutController:
   enabled: true
