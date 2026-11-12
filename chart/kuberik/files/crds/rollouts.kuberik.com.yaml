@@ -70,6 +70,7 @@ spec:
               availableReleasesMinCount:
                 default: 30
                 description: |-
+                  Deprecated: ignored; retention is ReleaseSource.spec.retention. Removed in the next release.
                   AvailableReleasesMinCount defines the minimum number of available releases to always keep
                   When history is full, at least this many releases will be retained regardless of other criteria.
                   Defaults to 30 if not specified.
@@ -79,6 +80,7 @@ spec:
               availableReleasesRetentionDays:
                 default: 7
                 description: |-
+                  Deprecated: ignored; retention is ReleaseSource.spec.retention. Removed in the next release.
                   AvailableReleasesRetentionDays defines how many days of available releases to keep based on creation timestamp
                   When history is full, releases older than this retention period may be removed.
                   Defaults to 7 days if not specified.
@@ -200,9 +202,33 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                 type: object
+              releaseSourceRef:
+                description: |-
+                  ReleaseSourceRef names a ReleaseSource (kuberik.com, served by release-controller)
+                  in the same namespace that provides this Rollout's releases. When set (and the
+                  release-controller CRDs are installed) the Rollout reads its releases from the
+                  source's ReleaseSlice catalogue. This is the only release path: a Rollout
+                  without it gets no releases and reports ReleasesUpdated=False and Ready=False
+                  with reason ReleaseSourceRequired.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               releasesImagePolicy:
-                description: ReleasesImagePolicy specifies the ImagePolicy that provides
-                  available releases
+                description: |-
+                  Deprecated: ignored; removed in the next release. Releases come from
+                  releaseSourceRef; to migrate an existing Flux ImagePolicy, create a
+                  ReleaseSource with spec.oci.imagePolicyRef. A Rollout that sets it reports
+                  ReleasesImagePolicyIgnored=True.
+                  A value type, so Go clients always send "releasesImagePolicy: {}".
                 properties:
                   name:
                     default: ""
@@ -226,8 +252,6 @@ spec:
                 description: WantedVersion specifies a specific version to deploy,
                   overriding the automatic version selection
                 type: string
-            required:
-            - releasesImagePolicy
             type: object
           status:
             description: RolloutStatus defines the observed state of Rollout.
@@ -239,8 +263,10 @@ spec:
                   This field is set once for the entire rollout based on the latest available release.
                 type: string
               availableReleases:
-                description: AvailableReleases is a list of all releases available
-                  in the releases repository.
+                description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read
+                  status.candidates and the ReleaseSlice catalogue instead. Removed in the next release.
+                  AvailableReleases is a list of all releases available in the releases repository.
                 items:
                   description: VersionInfo represents detailed information about a
                     version.
@@ -254,6 +280,31 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
@@ -268,6 +319,47 @@ spec:
                   required:
                   - tag
                   type: object
+                type: array
+              candidates:
+                description: |-
+                  Candidates is the working set in slices mode: the K newest releases newer
+                  than the deployed one, plus any release newer than the deployed one that a
+                  gate's allowedVersions, the force-deploy or bypass-gates annotation, or
+                  spec.wantedVersion names. Newest first.
+                items:
+                  description: |-
+                    ReleaseCandidate is a release the Rollout could deploy next. It is
+                    deliberately lean: full release metadata (digest, revision, version,
+                    requires) lives in the ReleaseSlice catalogue and in history entries.
+                  properties:
+                    blockedBy:
+                      description: BlockedBy lists the gates that do not let this
+                        release through.
+                      items:
+                        type: string
+                      maxItems: 16
+                      type: array
+                    created:
+                      description: Created is the release creation time.
+                      format: date-time
+                      type: string
+                    firstSeen:
+                      description: FirstSeen is when the catalogue first admitted
+                        this release.
+                      format: date-time
+                      type: string
+                    gated:
+                      description: Gated is true when the release passes every gate.
+                      type: boolean
+                    tag:
+                      description: Tag is the release tag.
+                      maxLength: 128
+                      type: string
+                  required:
+                  - gated
+                  - tag
+                  type: object
+                maxItems: 64
                 type: array
               conditions:
                 description: Conditions represents the current state of the rollout
@@ -337,6 +429,8 @@ spec:
                 type: string
               gatedReleaseCandidates:
                 description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read status.candidates
+                  (gated field) instead. Removed in the next release.
                   GatedReleaseCandidates is a list of release candidates that have passed through all gates.
                   This shows which versions are actually available for deployment after gate evaluation.
                 items:
@@ -352,6 +446,31 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
@@ -407,6 +526,22 @@ spec:
                   description: DeploymentHistoryEntry represents a single entry in
                     the deployment history.
                   properties:
+                    approval:
+                      description: |-
+                        Approval names the RolloutApproval that let this build through an
+                        approval gate. Nil when no approval gate applied, or when gates were bypassed.
+                      properties:
+                        by:
+                          description: By is the approval.kuberik.com/by annotation
+                            at deploy time, if set.
+                          type: string
+                        name:
+                          description: Name of the RolloutApproval, in the Rollout's
+                            namespace.
+                          type: string
+                      required:
+                      - name
+                      type: object
                     bakeEndTime:
                       description: |-
                         BakeEndTime is the time when the bake period ended for this deployment
@@ -448,6 +583,79 @@ spec:
                             description: Namespace is the namespace of the health
                               check.
                             type: string
+                          observations:
+                            description: |-
+                              Observations is a snapshot of the health check's status.observations taken
+                              when the failure was recorded. It is not updated afterwards, so the figure
+                              survives the health check recovering.
+                            items:
+                              description: |-
+                                HealthCheckObservation is one typed fact a health check evaluated.
+                                Numeric fields are decimal strings (e.g. "8.2", "0.082") so no precision is lost
+                                and the CRD stays float-free.
+                              properties:
+                                direction:
+                                  description: 'Direction, for Threshold: Above is
+                                    bad when value > limit; Below is bad when value
+                                    < limit.'
+                                  enum:
+                                  - Above
+                                  - Below
+                                  type: string
+                                healthy:
+                                  description: |-
+                                    Healthy says whether this observation alone is within bounds, so a consumer
+                                    can mark the offending one when several are listed.
+                                  type: boolean
+                                kind:
+                                  description: |-
+                                    Kind picks the drawing: Threshold (value vs limit), Ratio (value of total),
+                                    Count (value), State (no number; label only).
+                                  enum:
+                                  - Threshold
+                                  - Ratio
+                                  - Count
+                                  - State
+                                  type: string
+                                limit:
+                                  description: Limit is the boundary for a Threshold
+                                    observation, as a decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                name:
+                                  description: Name of the observed quantity, shown
+                                    as the label ("error rate", "p99 latency").
+                                  minLength: 1
+                                  type: string
+                                observedTime:
+                                  description: ObservedTime is when the provider last
+                                    evaluated this observation.
+                                  format: date-time
+                                  type: string
+                                total:
+                                  description: Total is the denominator for a Ratio
+                                    observation, as a decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                unit:
+                                  description: 'Unit of the numbers: Percent (a ratio
+                                    0..1), Milliseconds, Seconds, Count, or free text.'
+                                  type: string
+                                value:
+                                  description: Value is the observed number, as a
+                                    decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                window:
+                                  description: Window the observation covers, e.g.
+                                    "5m".
+                                  type: string
+                              required:
+                              - kind
+                              - name
+                              type: object
+                            maxItems: 16
+                            type: array
                         required:
                         - name
                         - namespace
@@ -458,6 +666,14 @@ spec:
                         this history entry.
                       format: int64
                       type: integer
+                    lastRetryTimestamp:
+                      description: |-
+                        LastRetryTimestamp is the time when a retry was most recently requested for this deployment.
+                        When set, downstream controllers (health checks, kruise rollout step gates) use this as a
+                        cutoff: stale failure conditions with LastTransitionTime older than LastRetryTimestamp are
+                        ignored as they reflect the pre-retry state.
+                      format: date-time
+                      type: string
                     message:
                       description: |-
                         Message provides a descriptive message about this deployment entry
@@ -508,6 +724,31 @@ spec:
                           description: Digest is the image digest if available from
                             the ImagePolicy.
                           type: string
+                        metadataUnresolved:
+                          description: |-
+                            MetadataUnresolved is true when this release's OCI manifest could not be
+                            read, so Requires and the version fields say nothing about the image.
+                            A RolloutDependency blocks such a release rather than reading the absent
+                            annotations as "declares no requirement", which would open the gate
+                            whenever the registry is unreachable.
+                          type: boolean
+                        requires:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            Requires maps a contract name to what this release requires of that
+                            contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                            annotations. Values are version constraints as defined by
+                            github.com/Masterminds/semver, applied verbatim — note that a bare version
+                            is an exact match there, not a floor.
+                            RolloutDependency uses these to gate this release on the deployed version of
+                            the Rollout providing each contract.
+
+                            Bounded because it is populated from image annotations, which are outside
+                            this controller's trust boundary, and is stored on every release and every
+                            history entry.
+                          maxProperties: 32
+                          type: object
                         revision:
                           description: Revision is the revision information extracted
                             from OCI annotations if available.
@@ -529,6 +770,8 @@ spec:
                 type: array
               releaseCandidates:
                 description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read status.candidates instead.
+                  Removed in the next release.
                   ReleaseCandidates is a list of releases that are candidates for the next deployment.
                   These are filtered from AvailableReleases based on deployment history and version ordering.
                 items:
@@ -544,6 +787,31 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
@@ -559,6 +827,32 @@ spec:
                   - tag
                   type: object
                 type: array
+              releaseSource:
+                description: ReleaseSource summarises the ReleaseSource this Rollout
+                  reads (slices mode only).
+                properties:
+                  count:
+                    description: Count is the number of releases in the catalogue.
+                    format: int32
+                    type: integer
+                  name:
+                    description: Name of the ReleaseSource.
+                    type: string
+                  newest:
+                    description: Newest is the tag of the newest release in the catalogue.
+                    type: string
+                  observedAt:
+                    description: ObservedAt is when name, ready, count or newest last
+                      changed.
+                    format: date-time
+                    type: string
+                  ready:
+                    description: Ready mirrors the ReleaseSource Ready condition.
+                    type: boolean
+                required:
+                - name
+                - ready
+                type: object
               source:
                 description: |-
                   Source is the source information extracted from OCI annotations.
