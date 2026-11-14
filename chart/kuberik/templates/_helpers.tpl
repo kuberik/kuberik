@@ -38,3 +38,12 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | quote }}
 {{- end -}}
 {{ printf "%s:%s" .Values.rolloutController.image.repository $tag }}
 {{- end -}}
+
+{{/* spokeUrlAllowlist may be a list or a comma-separated string. */}}
+{{- define "kuberik.spokeUrlAllowlist" -}}
+{{- if kindIs "string" .Values.dashboard.spokeUrlAllowlist -}}
+{{- .Values.dashboard.spokeUrlAllowlist -}}
+{{- else -}}
+{{- join "," .Values.dashboard.spokeUrlAllowlist -}}
+{{- end -}}
+{{- end }}
