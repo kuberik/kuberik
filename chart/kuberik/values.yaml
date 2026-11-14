@@ -65,6 +65,8 @@ rolloutController:
   extraEnv: []
 
 # Prometheus Operator ServiceMonitor for scraping controller metrics.
+# Also skipped when the cluster does not serve monitoring.coreos.com/v1 (pass
+# --api-versions monitoring.coreos.com/v1 to `helm template`).
 metrics:
   serviceMonitor:
     enabled: false
@@ -116,6 +118,13 @@ dashboard:
     repository: ghcr.io/kuberik/rollout-dashboard
     tag: ""
   replicas: 1
+  # GitHub App user-authorization for commit changelists. Name of an
+  # existing Secret with `clientId` and `clientSecret` keys; it is mapped to
+  # GITHUB_APP_CLIENT_ID / GITHUB_APP_CLIENT_SECRET. The refs are optional,
+  # so the dashboard still starts if the Secret does not exist yet. Set to ""
+  # to not wire them at all.
+  githubApp:
+    existingSecret: github-app-credentials
   resources:
     requests:
       cpu: 50m

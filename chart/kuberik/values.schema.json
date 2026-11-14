@@ -64,6 +64,12 @@
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
+        "githubApp": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" }
+          }
+        },
         "gateway": {
           "type": "object",
           "properties": {

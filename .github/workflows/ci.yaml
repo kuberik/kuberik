@@ -75,6 +75,12 @@ jobs:
             --set integrations.environment.enabled=true \
             --set dashboard.enabled=true \
             > /tmp/kuberik-all.yaml
+      - name: Render chart (production values, with and without Prometheus Operator CRDs)
+        run: |
+          helm template kuberik chart/kuberik -f chart/kuberik/values-production.yaml \
+            --api-versions monitoring.coreos.com/v1 | grep -q 'pod-security.kubernetes.io/enforce: "restricted"'
+          helm template kuberik chart/kuberik -f chart/kuberik/values-production.yaml \
+            | { ! grep -q 'kind: ServiceMonitor'; }
       - name: Validate rendered output with kubeval-style check
         run: |
           # Count top-level kinds to confirm dashboard + integrations rendered
