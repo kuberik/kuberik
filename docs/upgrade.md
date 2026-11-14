@@ -22,6 +22,8 @@ helm upgrade kuberik kuberik/kuberik -n kuberik-system
 
 Since chart 0.7.0 the CRDs are rendered as chart resources, so `helm upgrade` installs new CRDs and updates existing ones. They carry `helm.sh/resource-policy: keep`, so `helm uninstall` and a chart that stops shipping a CRD leave it in place. Charts up to 0.6.1 shipped CRDs in `crds/`, which Helm creates on install and never touches on upgrade. Two consequences:
 
+**Multi-cluster hubs: set `dashboard.spokeUrlAllowlist`.** A dashboard build with the spoke credential fix only sends viewer credentials to spoke origins listed in `SPOKE_URL_ALLOWLIST` and drops every other discovered spoke (fail closed, one log line). The chart wires this from `dashboard.spokeUrlAllowlist` (list or comma-separated string of `scheme://host[:port]` origins, `https://*.example.com` wildcard) through the `kuberik-cluster-info` ConfigMap. Leave it unset only on single-cluster installs; a hub upgraded without it loses all its spokes.
+
 **Upgrading from ≤ 0.6.1 to ≥ 0.7.0.** Hand the existing CRDs over to the release once, otherwise Helm refuses with `invalid ownership metadata`:
 
 ```bash
