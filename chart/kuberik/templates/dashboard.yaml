@@ -165,7 +165,7 @@ spec:
                   name: kuberik-cluster-info
                   key: insecureSkipTLSVerify
                   optional: true
-            {{- with .Values.dashboard.githubApp.existingSecret }}
+            {{- with (dig "githubApp" "existingSecret" "" .Values.dashboard) }}
             # GitHub App user-authorization (commit changelists). Keys:
             # clientId, clientSecret.
             - name: GITHUB_APP_CLIENT_ID

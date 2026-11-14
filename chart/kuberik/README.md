@@ -88,10 +88,11 @@ See [values.yaml](values.yaml) for the full schema.
 A complete opinionated overrides file ships with the chart at [values-production.yaml](values-production.yaml). Use as-is or as a starting point:
 
 ```bash
-# No --create-namespace: the chart creates the namespace so the restricted
-# Pod Security labels in values-production.yaml are applied.
+# No --create-namespace: the chart creates kuberik-system itself so the
+# restricted Pod Security labels in values-production.yaml are applied. The
+# release record lives in --namespace, which must already exist (`default`).
 helm install kuberik oci://ghcr.io/kuberik/charts/kuberik \
-  --namespace kuberik-system \
+  --namespace default \
   -f values-production.yaml
 ```
 

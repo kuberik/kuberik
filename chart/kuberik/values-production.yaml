@@ -1,7 +1,7 @@
 # Opinionated production overrides for the kuberik chart.
 #
 #   helm install kuberik oci://ghcr.io/kuberik/charts/kuberik \
-#     --namespace kuberik-system \
+#     --namespace default \
 #     -f values-production.yaml
 #
 # Tweak the dashboard.ingress.host and metrics.serviceMonitor.namespace
@@ -9,7 +9,9 @@
 
 # The chart owns the namespace so the Pod Security labels below are applied.
 # Do NOT pass --create-namespace: Helm would create an unlabelled namespace
-# and the chart's Namespace would then fail with "already exists".
+# and the chart's Namespace would then fail with "already exists". Helm
+# stores the release record in --namespace, which must already exist, so use
+# `default`; the chart's resources still go to `namespace` (kuberik-system).
 createNamespace: true
 
 # PSA: restricted enforce + audit; the controllers run as non-root with
