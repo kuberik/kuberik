@@ -54,7 +54,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "datadog":     { "type": "object", "properties": { "enabled": { "type": "boolean" } } },
+        "datadog":     { "type": "object", "properties": { "enabled": { "type": "boolean" }, "existingSecret": { "type": "string" } } },
         "prometheus":  { "type": "object", "properties": { "enabled": { "type": "boolean" } } },
         "openkruise":  { "type": "object", "properties": { "enabled": { "type": "boolean" } } },
         "environment": { "type": "object", "properties": { "enabled": { "type": "boolean" } } }

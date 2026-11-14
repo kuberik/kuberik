@@ -83,6 +83,12 @@ integrations:
     image:
       repository: ghcr.io/kuberik/datadog-controller
       tag: ""  # defaults to the version pinned by the template
+    # Name of an existing Secret with `api-key`, `app-key` and `site` keys,
+    # mapped to DD_API_KEY / DD_APP_KEY / DD_SITE for the datadog and
+    # datadog-incidents HealthCheck classes. The refs are optional, so the
+    # controller still starts if the Secret does not exist yet. Set to "" to
+    # not wire them at all.
+    existingSecret: datadog-credentials
     replicas: 1
     resources:
       requests: { cpu: 10m, memory: 64Mi }
