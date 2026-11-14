@@ -73,7 +73,8 @@ helm install kuberik ./chart/kuberik \
 | `auth.cookieDomain` | _canonicalHost_ | Cookie scope; set a parent domain to share session across subdomains |
 | `auth.gateway.name` | `""` | Gateway the `/oauth2/*` HTTPRoute attaches to |
 | `auth.apiRoutes` | `["^/api/"]` | Paths answered `401` instead of redirected to the IdP, so the dashboard's polling/SSE requests don't start background OIDC flows |
-| `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator ServiceMonitor for the rollout-controller |
+| `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator ServiceMonitor for the rollout-controller; only rendered when the cluster serves `monitoring.coreos.com/v1` |
+| `dashboard.githubApp.existingSecret` | `github-app-credentials` | Secret with `clientId`/`clientSecret` keys, wired to `GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET` on the dashboard; `""` disables |
 | `networkPolicy.enabled` | `false` | Restrict ingress/egress for the controller pods |
 | `rolloutController.podDisruptionBudget.enabled` | `false` | Emit a PDB (requires replicas > 1) |
 | `createNamespace` | `true` | Have the chart create the Namespace. Set false when using `helm install --create-namespace` |
@@ -87,8 +88,10 @@ See [values.yaml](values.yaml) for the full schema.
 A complete opinionated overrides file ships with the chart at [values-production.yaml](values-production.yaml). Use as-is or as a starting point:
 
 ```bash
+# No --create-namespace: the chart creates the namespace so the restricted
+# Pod Security labels in values-production.yaml are applied.
 helm install kuberik oci://ghcr.io/kuberik/charts/kuberik \
-  --namespace kuberik-system --create-namespace \
+  --namespace kuberik-system \
   -f values-production.yaml
 ```
 

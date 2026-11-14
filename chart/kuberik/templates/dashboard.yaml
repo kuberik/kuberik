@@ -165,6 +165,22 @@ spec:
                   name: kuberik-cluster-info
                   key: insecureSkipTLSVerify
                   optional: true
+            {{- with .Values.dashboard.githubApp.existingSecret }}
+            # GitHub App user-authorization (commit changelists). Keys:
+            # clientId, clientSecret.
+            - name: GITHUB_APP_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: clientId
+                  optional: true
+            - name: GITHUB_APP_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: clientSecret
+                  optional: true
+            {{- end }}
           resources:
             {{- toYaml .Values.dashboard.resources | nindent 12 }}
       serviceAccountName: rollout-dashboard
