@@ -207,6 +207,29 @@ spec:
         command:
         - /manager
         image: {{ printf "%s:%s" .Values.integrations.datadog.image.repository (.Values.integrations.datadog.image.tag | default "v0.1.0") | quote }}
+        {{- with (dig "existingSecret" "" .Values.integrations.datadog) }}
+        # Datadog API credentials for the datadog and datadog-incidents
+        # classes. Keys: api-key, app-key, site.
+        env:
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ . | quote }}
+              key: api-key
+              optional: true
+        - name: DD_APP_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ . | quote }}
+              key: app-key
+              optional: true
+        - name: DD_SITE
+          valueFrom:
+            secretKeyRef:
+              name: {{ . | quote }}
+              key: site
+              optional: true
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /healthz

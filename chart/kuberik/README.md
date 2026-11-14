@@ -56,6 +56,7 @@ helm install kuberik ./chart/kuberik \
 | `rolloutController.replicas` | `1` | Number of controller replicas |
 | `rolloutController.logLevel` | `info` | Controller log level |
 | `integrations.datadog.enabled` | `false` | Install datadog-controller |
+| `integrations.datadog.existingSecret` | `datadog-credentials` | Secret with `api-key`, `app-key`, `site`, mapped to `DD_API_KEY`/`DD_APP_KEY`/`DD_SITE` (optional refs; `""` to disable) |
 | `integrations.prometheus.enabled` | `false` | Install prometheus-controller |
 | `integrations.openkruise.enabled` | `false` | Install openkruise-controller |
 | `integrations.environment.enabled` | `false` | Install environment-controller |
