@@ -186,12 +186,15 @@ jobs:
           # basic-rollout/rollout.yaml is not applied for the same reason
           # (no release-controller in this job); validate its ReleaseSource only.
           kubectl apply -f examples/basic-rollout/releasesource.yaml
-          kubectl apply -f examples/with-gate/gate.yaml
+          kubectl apply -f examples/with-gate/approval-policy.yaml
+          kubectl apply -f examples/with-gate/approval.yaml
           kubectl apply -f examples/with-schedule/schedule.yaml
           kubectl apply -f examples/with-schedule/freeze.yaml
           kubectl apply -f examples/with-environments/environments.yaml
-          kubectl get rollout,rolloutgate,rolloutschedule,clusterrolloutschedule,environment -A | \
+          kubectl get rollout,rolloutschedule,clusterrolloutschedule,environment -A | \
             grep -E 'business-hours|christmas-freeze|staging|production'
+          kubectl get approvalpolicy,rolloutapproval -n default | \
+            grep -E 'manual-approval|my-app-1-0-1'
       - name: Verify helm uninstall is clean
         # Uninstall should leave no Deployments or Services in
         # kuberik-system. CRDs intentionally remain: they carry
