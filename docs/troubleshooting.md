@@ -75,15 +75,20 @@ Common causes:
 
 ## A gate keeps re-blocking
 
-If you flip a gate's `spec.passing` and it is reset right after, the gate is owned by a `RolloutSchedule`, `ApprovalPolicy` or environment-controller, which reconciles it back. Check:
+If you flip a gate's `spec.passing` and it is reset right after, a controller owns the gate:
+
+- gates of a `RolloutSchedule` or `ClusterRolloutSchedule` are reconciled back by the rollout-controller (labels `gate.kuberik.com/schedule-name`);
+- gates of a `RolloutDependency` likewise (label `gate.kuberik.com/dependency-name`);
+- `ghd-*` gates belong to the environment-controller; find their owner through the owner reference, not a label.
+
+Gates owned by an `ApprovalPolicy` or `ClusterApprovalPolicy` are not reset: an admission policy refuses the edit outright. Check who owns a gate:
 
 ```bash
-kubectl get rolloutschedule -A
-kubectl get clusterrolloutschedule
-kubectl get rolloutgate -n <namespace> --show-labels
+kubectl get rolloutgate -n <namespace> \
+  -o custom-columns=NAME:.metadata.name,PASSING:.spec.passing,OWNER:.metadata.ownerReferences[*].kind --show-labels
 ```
 
-The `gate.kuberik.com/*-name` labels say which object owns the gate. Change that object, not the gate. To approve a version, use a `RolloutApproval`, not `passing`.
+Change the owning object, not the gate. To approve a version, create a `RolloutApproval`, not `passing`.
 
 ## Asking for help
 
