@@ -162,12 +162,15 @@ jobs:
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
           kubectl apply -f examples/basic-rollout/rollout.yaml
-          kubectl apply -f examples/with-gate/gate.yaml
+          kubectl apply -f examples/with-gate/approval-policy.yaml
+          kubectl apply -f examples/with-gate/approval.yaml
           kubectl apply -f examples/with-schedule/schedule.yaml
           kubectl apply -f examples/with-schedule/freeze.yaml
           kubectl apply -f examples/with-environments/environments.yaml
-          kubectl get rollout,rolloutgate,rolloutschedule,clusterrolloutschedule,environment -A | \
+          kubectl get rollout,rolloutschedule,clusterrolloutschedule,environment -A | \
             grep -E 'my-app|business-hours|christmas-freeze|staging|production'
+          kubectl get approvalpolicy,rolloutapproval -n default | \
+            grep -E 'manual-approval|my-app-1-0-1'
       - name: Verify helm uninstall is clean
         # Uninstall should leave no Deployments or Services in
         # kuberik-system. CRDs intentionally remain: they carry
