@@ -1,28 +1,37 @@
 # Rollout with Datadog Health Check
 
-Use Datadog as a health signal for a Kuberik Rollout. While the signal is healthy, the bake period proceeds; if Datadog reports a problem during bake, the rollout is paused. The datadog-controller is installed either way (it ships in the install bundle, or apply only the integration controller from its release).
+Use Datadog as a health signal for a Kuberik Rollout. While the signal is healthy, the bake period proceeds; if Datadog reports a problem during bake, the rollout fails the bake. The datadog-controller is installed either way (it ships in the install bundle, or apply only the integration controller from its release).
 
 Three modes, pick one:
 
 | File | Mode | Requires Datadog Operator? |
 | --- | --- | --- |
 | [monitor.yaml](monitor.yaml) | Annotate a `DatadogMonitor` CRD | Yes |
-| [healthcheck-datadog-api.yaml](healthcheck-datadog-api.yaml) | Poll a monitor via the Datadog API directly | No |
-| [healthcheck-datadog-incidents.yaml](healthcheck-datadog-incidents.yaml) | Go unhealthy while a labeled incident is open | No |
+| [healthcheck-datadog-api.yaml](healthcheck-datadog-api.yaml) | Poll monitors via the Datadog API directly (class `datadog`) | No |
+| [healthcheck-datadog-incidents.yaml](healthcheck-datadog-incidents.yaml) | Go unhealthy while a matching incident is open (class `datadog-incidents`) | No |
+
+## Credentials
+
+The API modes read one set of Datadog credentials for the whole cluster, from the optional `datadog-credentials` Secret in the controller's namespace (keys `api-key`, `app-key`, optional `site`). There is no per-HealthCheck secret.
+
+```bash
+kubectl -n kuberik-system create secret generic datadog-credentials \
+  --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
+```
 
 ## DatadogMonitor CRD
 
-Requires the Datadog Operator and `DatadogMonitor` CRD installed, with the Datadog API key configured for the operator.
+Requires the Datadog Operator and `DatadogMonitor` CRD installed, with the Datadog API key configured for the operator. The controller checks for the CRD at startup, so restart it after installing the Operator.
 
 ```bash
 kubectl apply -f monitor.yaml
 ```
 
-The datadog-controller sees the `kuberik.com/health-check: "true"` annotation and creates a `HealthCheck` resource named `my-app-error-rate` mirroring the monitor's state.
+The datadog-controller sees the `kuberik.com/health-check: "true"` annotation and creates a `HealthCheck` named `datadog-check-my-app-error-rate` mirroring the monitor's state.
 
 ## Direct API Mode
 
-No Datadog Operator needed - the controller polls the Datadog API for an existing monitor's status. Requires a secret with your `api-key`/`app-key` (see file header).
+No Datadog Operator needed. The controller polls the Datadog API for the monitors you select by ID or tag.
 
 ```bash
 kubectl apply -f healthcheck-datadog-api.yaml
@@ -30,7 +39,7 @@ kubectl apply -f healthcheck-datadog-api.yaml
 
 ## Incident-Based Mode
 
-Goes unhealthy while any open Datadog incident matches the given labels, independent of any specific monitor. Same credentials secret as direct API mode.
+Goes unhealthy while any open Datadog incident matches the search query, independent of any specific monitor.
 
 ```bash
 kubectl apply -f healthcheck-datadog-incidents.yaml
@@ -38,7 +47,18 @@ kubectl apply -f healthcheck-datadog-incidents.yaml
 
 ## Wire it to your Rollout
 
-The HealthCheck must reference the Rollout. The datadog-controller does this automatically based on label selection - any Rollout labeled to match the HealthCheck's `selector` will pick it up. Adjust labels on your Rollout accordingly.
+A Rollout only considers HealthChecks that its `spec.healthCheckSelector` matches; with no selector it has none. Add the selector to the Rollout from [examples/basic-rollout](../basic-rollout). The HealthChecks here carry the label `app: my-app`:
+
+```yaml
+spec:
+  healthCheckSelector:
+    selector:
+      matchLabels:
+        app: my-app
+    # HealthChecks in other namespaces: also set namespaceSelector.
+```
+
+Without `namespaceSelector`, only HealthChecks in the Rollout's own namespace are considered, so create the Rollout in the same namespace (`production`) as the HealthCheck.
 
 ## Inspect
 
