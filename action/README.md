@@ -24,12 +24,26 @@ Install the [Kuberik CLI](https://github.com/kuberik/kuberik) on Linux, macOS, o
 
 ## Examples
 
-### Approve a gate from CI
+### Approve a version from CI
+
+Approvals are per-version `RolloutApproval` objects. The identity running this step needs the `kuberik-rollout-approver` role.
 
 ```yaml
-- uses: kuberik/kuberik/action@main
 - uses: azure/setup-kubectl@v4
-- run: kuberik approve my-app-approval -n production
+- run: |
+    kubectl apply -f - <<EOF
+    apiVersion: kuberik.com/v1alpha1
+    kind: RolloutApproval
+    metadata:
+      name: my-app-${VERSION//./-}
+      namespace: production
+    spec:
+      rolloutRef:
+        name: my-app
+      version: "${VERSION}"
+    EOF
+  env:
+    VERSION: "1.2.3"
 ```
 
 ### Install Kuberik on a kind cluster for integration tests
