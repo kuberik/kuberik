@@ -4,7 +4,7 @@ This guide walks you through installing Kuberik and deploying your first Rollout
 
 ## Prerequisites
 
-- Kubernetes cluster (1.25+)
+- Kubernetes cluster (1.30+)
 - [Flux v2.6 or later](https://fluxcd.io/docs/installation/) with source-controller and kustomize-controller. image-reflector-controller is optional.
 - release-controller, which provides the `ReleaseSource` resource (see its [README](https://github.com/kuberik/release-controller) for the install)
 - `kubectl` configured to access your cluster
