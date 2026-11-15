@@ -2,14 +2,16 @@
 # The dashboard creates these when someone presses Approve; this is the
 # same object written by hand. `version` is the release tag and may name
 # a version that does not exist yet.
+#
+# The approval.kuberik.com/by annotation is optional. If you set it, it
+# must equal your own Kubernetes username: an admission policy refuses
+# any other value.
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: RolloutApproval
 metadata:
   name: my-app-1-0-1
   namespace: default
-  annotations:
-    approval.kuberik.com/by: "alice"
 spec:
   rolloutRef:
     name: my-app
