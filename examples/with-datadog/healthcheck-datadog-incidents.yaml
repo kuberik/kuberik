@@ -12,7 +12,8 @@
 #     The controller reads DATADOG_API_KEY or DD_API_KEY (and the matching
 #     app key and site variables); the bundle and the chart
 #     (integrations.datadog.existingSecret, default datadog-credentials)
-#     set the DD_* ones from the Secret when the pod starts, so restart the datadog-controller after creating or changing it.
+#     set the DD_* ones from the Secret when the pod starts, so restart
+#     the datadog-controller after creating or changing it.
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: HealthCheck
