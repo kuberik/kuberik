@@ -10,6 +10,8 @@
 #     controller's namespace (keys api-key, app-key, optional site):
 #       kubectl -n kuberik-system create secret generic datadog-credentials \
 #         --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
+#     With the Helm chart the Secret is wired only through
+#     integrations.datadog.existingSecret (default datadog-credentials).
 #     Without credentials the HealthCheck stays Pending.
 ---
 apiVersion: kuberik.com/v1alpha1

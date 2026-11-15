@@ -12,12 +12,17 @@ Three modes, pick one:
 
 ## Credentials
 
-The API modes read one set of Datadog credentials for the whole cluster, from the optional `datadog-credentials` Secret in the controller's namespace (keys `api-key`, `app-key`, optional `site`). There is no per-HealthCheck secret.
+The API modes use one set of Datadog credentials for the whole cluster (keys `api-key`, `app-key`, optional `site`). There is no per-HealthCheck secret. Create the Secret in the controller's namespace:
 
 ```bash
 kubectl -n kuberik-system create secret generic datadog-credentials \
   --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
 ```
+
+How the controller gets it depends on how you installed it:
+
+- **Helm chart:** the chart maps the Secret named by `integrations.datadog.existingSecret` (default `datadog-credentials`, in the release namespace) to the controller's environment. If you set `existingSecret: ""`, no credentials are wired and the API modes stay Pending.
+- **Install bundle or the controller's own release:** the controller reads the `datadog-credentials` Secret in its own namespace.
 
 ## DatadogMonitor CRD
 
