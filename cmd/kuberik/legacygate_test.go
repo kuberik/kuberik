@@ -341,6 +341,7 @@ const forbiddenGates = `Error from server (Forbidden): rolloutgates.kuberik.com 
 func TestApproveForbiddenGatesWarnsFromRolloutStatus(t *testing.T) {
 	f := newFakeCluster()
 	f.listGates = errors.New(forbiddenGates)
+	forbidGets(f, "manual", "done", "kill", "other")
 	f.rolloutStatus = gateStatus(statusGate("manual", []string{}), statusGate("done", []string{"v1.42.0"}), statusGate("kill", nil))
 	useCluster(t, f)
 	warn := captureWarnings(t)
@@ -370,6 +371,7 @@ func TestApproveForbiddenGatesAllInSyncIsSilent(t *testing.T) {
 func TestRevokeForbiddenGatesWarnsAndFailsAfterDelete(t *testing.T) {
 	f := newFakeCluster()
 	f.listGates = errors.New(forbiddenGates)
+	forbidGets(f, "manual", "done", "kill", "other")
 	f.rolloutStatus = gateStatus(statusGate("manual", []string{"v1.42.0"}), statusGate("other", []string{"v1.1.0"}))
 	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
 	useCluster(t, f)
@@ -563,7 +565,23 @@ func TestForbiddenGatesUnprefixedUnreadableGateIsHedged(t *testing.T) {
 	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); !errors.Is(err, errLegacyGatesStale) {
 		t.Fatalf("err = %v", err)
 	}
-	if got := warn.String(); !strings.Contains(got, "manual") || !strings.Contains(got, "may be legacy approval gates") {
+	if got := warn.String(); !strings.Contains(got, "manual") || !strings.Contains(got, "may be a legacy approval gate") {
+		t.Fatalf("warning = %q", got)
+	}
+}
+
+func TestForbiddenGatesSkipGateDeletedSinceStatus(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	// The status still names "manual-gone", but the gate no longer exists.
+	f.rolloutStatus = gateStatus(statusGate("manual-gone", []string{"v1.42.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got := warn.String(); got != "" {
 		t.Fatalf("warning = %q", got)
 	}
 }

@@ -18,7 +18,7 @@ var errGatesForbidden = errors.New("not allowed to list RolloutGates")
 // errLegacyGatesStale is returned, after the work is done, when a legacy
 // approval gate still disagrees with the intended state and the caller has no
 // right to edit it.
-var errLegacyGatesStale = errors.New("legacy approval gates still disagree")
+var errLegacyGatesStale = errors.New("gates that could not be updated still disagree")
 
 const (
 	rolloutGateKind = "rolloutgates.kuberik.com"
@@ -216,14 +216,6 @@ type staleGate struct {
 	Confirmed bool
 }
 
-func staleNames(gates []staleGate) []string {
-	names := make([]string, 0, len(gates))
-	for _, g := range gates {
-		names = append(names, g.Name)
-	}
-	return names
-}
-
 // checkLegacyGatesFromStatus is the fallback for a caller who cannot list
 // RolloutGates. The Rollout's status.gates (readable with get rollouts) carries
 // each gate's name and allowedVersions. It returns the gates whose
@@ -263,7 +255,8 @@ func checkLegacyGatesFromStatus(ns, rollout, version string, add bool) []staleGa
 		if has == add {
 			continue
 		}
-		if gout, gerr := kubectlRun("", "-n", ns, "get", rolloutGateKind, g.Name, "-o", "json"); gerr == nil {
+		gout, gerr := kubectlRun("", "-n", ns, "get", rolloutGateKind, g.Name, "-o", "json")
+		if gerr == nil {
 			var obj gateObj
 			if json.Unmarshal([]byte(gout), &obj) == nil {
 				if isLegacyApprovalGate(&obj) {
@@ -271,6 +264,8 @@ func checkLegacyGatesFromStatus(ns, rollout, version string, add bool) []staleGa
 				}
 				continue
 			}
+		} else if strings.Contains(gerr.Error(), "NotFound") {
+			continue // deleted since the status was written; it allows nothing
 		}
 		if hasGeneratedGatePrefix(g.Name) {
 			continue
@@ -280,23 +275,30 @@ func checkLegacyGatesFromStatus(ns, rollout, version string, add bool) []staleGa
 	return stale
 }
 
+// describeStaleGates lists the gate names, marking those that only may be
+// legacy approval gates.
+func describeStaleGates(gates []staleGate) string {
+	parts := make([]string, 0, len(gates))
+	for _, g := range gates {
+		if g.Confirmed {
+			parts = append(parts, g.Name)
+		} else {
+			parts = append(parts, g.Name+" (may be a legacy approval gate)")
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 // warnStaleLegacyGates tells the caller which gates could not be updated.
 func warnStaleLegacyGates(ns, rollout, version string, add bool, gates []staleGate) {
 	if len(gates) == 0 {
 		return
 	}
-	state := "still allows"
-	want := "remove"
+	state := "still allow"
+	fix := "remove that version from"
 	if add {
-		state = "does not yet allow"
-		want = "add"
+		state = "do not yet allow"
+		fix = "add that version to"
 	}
-	noun := "legacy approval gate(s)"
-	for _, g := range gates {
-		if !g.Confirmed {
-			noun = "gate(s), which may be legacy approval gates,"
-			break
-		}
-	}
-	_, _ = fmt.Fprintf(warnOut, "warning: you are not allowed to list RolloutGates, so %s %s of %s/%s were not updated and %s %q. Someone with RolloutGate update rights should check each gate and, if it is a legacy approval gate, %s that version in its spec.allowedVersions.\n", noun, strings.Join(staleNames(gates), ", "), ns, rollout, state, version, want)
+	_, _ = fmt.Fprintf(warnOut, "warning: you are not allowed to list RolloutGates, so these gates of %s/%s were not updated and %s %q: %s. Someone with RolloutGate update rights should %s the spec.allowedVersions of each one that is a legacy approval gate.\n", ns, rollout, state, version, describeStaleGates(gates), fix)
 }
