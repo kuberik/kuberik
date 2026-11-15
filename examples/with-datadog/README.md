@@ -19,9 +19,9 @@ kubectl -n kuberik-system create secret generic datadog-credentials \
   --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
 ```
 
-The datadog-controller reads only the `DD_API_KEY`, `DD_APP_KEY` and `DD_SITE` environment variables. The install maps the Secret into those variables when the pod starts:
+The datadog-controller reads `DATADOG_API_KEY` or `DD_API_KEY` (and the matching `DATADOG_APP_KEY`/`DD_APP_KEY` and `DATADOG_SITE`/`DD_SITE`) from its environment. The install sets the `DD_*` ones from the Secret when the pod starts:
 
-- **Helm chart:** the Secret named by `integrations.datadog.existingSecret` (default `datadog-credentials`, in the release namespace). If you set `existingSecret: ""`, no credentials are wired and the API modes stay Pending.
+- **Helm chart:** the Secret named by `integrations.datadog.existingSecret` (default `datadog-credentials`, in the chart's `namespace` value, `kuberik-system` by default). If you set `existingSecret: ""`, no credentials are wired and the API modes stay Pending.
 - **Install bundle or the controller's own release:** the `datadog-credentials` Secret in the controller's namespace.
 
 Restart the datadog-controller after creating or changing the Secret:
