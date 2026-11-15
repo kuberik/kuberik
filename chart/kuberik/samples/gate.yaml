@@ -1,12 +1,18 @@
-# Sample manual-approval gate for the my-app Rollout.
-# Approve with: kuberik approve my-app-approval
+# Sample kill-switch gate for the my-app Rollout. It is open (passing: true).
+# Set spec.passing to false to stop promotions of my-app until it is
+# flipped back:
+#   kubectl patch rolloutgate my-app-killswitch -n default \
+#     --type merge -p '{"spec":{"passing":false}}'
+#
+# This is a veto, not an approval. Per-version approvals are RolloutApproval
+# objects owned by an ApprovalPolicy; see examples/with-gate.
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: RolloutGate
 metadata:
-  name: my-app-approval
+  name: my-app-killswitch
   namespace: default
 spec:
   rolloutRef:
     name: my-app
-  passing: false
+  passing: true

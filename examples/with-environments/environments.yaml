@@ -1,21 +1,23 @@
 # Multi-environment promotion: production proceeds only after staging.
 #
-# environment-controller reads each Environment's `relationship` and
-# creates a RolloutGate on the downstream Rollout that closes until
-# the upstream Environment reports a successful deployment via the
-# configured backend (GitHub Deployments in this example).
+# Both Environments use the same spec.name. They are told apart by
+# spec.environment, a tier with a fixed order: dev, test, staging, prod
+# (aliases such as "production" are accepted). environment-controller
+# gates each Environment on the nearest earlier tier that exists in
+# GitHub for the same name, by writing a RolloutGate on the Rollout.
+# There is no per-object ordering field.
 #
 # Requires environment-controller installed (helm: integrations.environment.enabled=true).
 ---
 apiVersion: environments.kuberik.com/v1alpha1
 kind: Environment
 metadata:
-  name: staging
+  name: my-app-staging
   namespace: staging
 spec:
   rolloutRef:
     name: my-app
-  name: my-app-staging
+  name: my-app
   environment: staging
   backend:
     type: github
@@ -25,18 +27,14 @@ spec:
 apiVersion: environments.kuberik.com/v1alpha1
 kind: Environment
 metadata:
-  name: production
+  name: my-app-production
   namespace: production
 spec:
   rolloutRef:
     name: my-app
-  name: my-app-production
+  name: my-app
   environment: production
   backend:
     type: github
     project: myorg/my-app
     secret: github-token
-  # Production proceeds only after staging finishes deploying.
-  relationship:
-    type: After
-    environment: staging

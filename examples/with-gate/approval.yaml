@@ -1,0 +1,16 @@
+# One approval for one version of one Rollout. spec is immutable.
+# The dashboard creates these when someone presses Approve; this is the
+# same object written by hand. `version` is the release tag and may name
+# a version that does not exist yet.
+---
+apiVersion: kuberik.com/v1alpha1
+kind: RolloutApproval
+metadata:
+  name: my-app-1-0-1
+  namespace: default
+  annotations:
+    approval.kuberik.com/by: "alice"
+spec:
+  rolloutRef:
+    name: my-app
+  version: "1.0.1"

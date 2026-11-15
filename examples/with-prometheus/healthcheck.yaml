@@ -1,26 +1,29 @@
-# A PrometheusHealthCheck resource (from prometheus-controller) that
-# evaluates a PromQL query and writes the result into a Kuberik HealthCheck.
+# A HealthCheck of class prometheus-alert. prometheus-controller reads the
+# firing alerts from Prometheus and goes Unhealthy while an alert matching
+# these labels is firing. Put the PromQL in an alerting rule in Prometheus;
+# the controller reads alert state, it does not run queries.
 #
 # Requires:
 #   - prometheus-controller installed
 #   - Prometheus reachable from the prometheus-controller pod
+#   - (optional) a Secret with a bearer token or username/password:
+#       kubectl create secret generic prometheus-credentials -n production \
+#         --from-literal=token=YOUR_BEARER_TOKEN
 ---
 apiVersion: kuberik.com/v1alpha1
-kind: PrometheusHealthCheck
+kind: HealthCheck
 metadata:
   name: my-app-latency
   namespace: production
+  labels:
+    # The Rollout's spec.healthCheckSelector matches on this label.
+    app: my-app
+  annotations:
+    # Required: the Prometheus server URL
+    healthcheck.kuberik.com/prometheus-url: "http://prometheus.monitoring.svc:9090"
+    # Required: alert label selector (comma-separated key=value pairs)
+    healthcheck.kuberik.com/prometheus-alert-labels: "alertname=HighP99Latency,service=my-app"
+    # healthcheck.kuberik.com/prometheus-credentials-secret: "prometheus-credentials"
+    # healthcheck.kuberik.com/requeue-interval: "30s"
 spec:
-  rolloutRef:
-    name: my-app
-  prometheus:
-    url: http://prometheus.monitoring.svc:9090
-  query: |
-    histogram_quantile(0.99,
-      sum(rate(http_request_duration_seconds_bucket{service="my-app"}[5m]))
-      by (le)
-    )
-  # Bake fails if p99 latency goes above 500ms.
-  threshold: 0.5
-  comparison: LessThan
-  interval: 30s
+  class: prometheus-alert
