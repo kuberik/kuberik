@@ -112,6 +112,8 @@ func TestApproveVersionIdempotent(t *testing.T) {
 			return `{"status":{"userInfo":{"username":"luka"}}}`, nil
 		case args[2] == "get" && args[3] == rolloutKind:
 			return `{"metadata":{"uid":"u"}}`, nil
+		case args[2] == "get" && args[3] == rolloutGateKind:
+			return `{"items":[]}`, nil
 		case args[0] == "create":
 			created = stdin
 			return "", errors.New("exit 1: Error from server (AlreadyExists): rolloutapprovals already exists")
@@ -138,6 +140,8 @@ func TestApproveVersionCollision(t *testing.T) {
 			return "", errors.New("no whoami")
 		case args[2] == "get" && args[3] == rolloutKind:
 			return `{"metadata":{"uid":"u"}}`, nil
+		case args[2] == "get" && args[3] == rolloutGateKind:
+			return `{"items":[]}`, nil
 		case args[0] == "create":
 			return "", errors.New("AlreadyExists")
 		}

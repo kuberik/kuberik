@@ -156,7 +156,25 @@ func approveVersion(ns, rollout, version string) (string, error) {
 		return "", err
 	}
 	name := approvalName(rollout, version)
-	_, err = kubectlRun(string(body), "create", "-f", "-")
+	// Legacy approval gates gain the version too (migration dual-write, as the
+	// dashboard's Approve does). The gate write comes first so a refused gate
+	// update leaves nothing half-written; it is undone if the create fails.
+	changed, err := setLegacyGateVersion(ns, rollout, version, true, nil)
+	if err != nil {
+		return "", err
+	}
+	name, err = createApproval(ns, rollout, version, name, string(body))
+	if err != nil && !errors.Is(err, errAlreadyApproved) {
+		undoLegacyGates(ns, rollout, version, true, changed)
+	}
+	return name, err
+}
+
+// createApproval creates the RolloutApproval from body. An identical existing
+// one yields errAlreadyApproved; a different one under the same name yields
+// errApprovalCollision.
+func createApproval(ns, rollout, version, name, body string) (string, error) {
+	_, err := kubectlRun(body, "create", "-f", "-")
 	if err == nil {
 		return name, nil
 	}
@@ -209,14 +227,23 @@ func revokeVersion(ns, rollout, version string) (deleted bool, remaining []strin
 		}
 		if json.Unmarshal([]byte(lout), &list) == nil {
 			for _, a := range list.Items {
-				if a.Spec.RolloutRef.Name == rollout && a.Spec.Version == version && !(ours && a.Metadata.Name == name) {
+				if a.Spec.RolloutRef.Name == rollout && a.Spec.Version == version && (!ours || a.Metadata.Name != name) {
 					remaining = append(remaining, a.Metadata.Name)
 				}
 			}
 		}
 	}
+	// Legacy gates lose the version only when nothing else still approves it.
+	// Gate first: a refused gate update leaves the approval in place.
+	var changed []string
+	if len(remaining) == 0 {
+		if changed, err = setLegacyGateVersion(ns, rollout, version, false, nil); err != nil {
+			return false, nil, err
+		}
+	}
 	if ours {
 		if _, derr := kubectlRun("", "-n", ns, "delete", rolloutApprovalKind, name, "--ignore-not-found"); derr != nil {
+			undoLegacyGates(ns, rollout, version, false, changed)
 			return false, remaining, fmt.Errorf("delete RolloutApproval %s/%s: %w", ns, name, derr)
 		}
 	}
@@ -243,13 +270,13 @@ Approving the same version twice is a no-op. Undo it with "kuberik revoke".`,
 		name, err := approveVersion(namespace, args[0], args[1])
 		switch {
 		case err == nil:
-			fmt.Fprintf(cmd.ErrOrStderr(), "Approved %s for %s/%s\n", args[1], namespace, args[0])
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Approved %s for %s/%s\n", args[1], namespace, args[0])
 		case errors.Is(err, errAlreadyApproved):
-			fmt.Fprintf(cmd.ErrOrStderr(), "%s is already approved for %s/%s\n", args[1], namespace, args[0])
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s is already approved for %s/%s\n", args[1], namespace, args[0])
 		default:
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "rolloutapproval.kuberik.com/%s\n", name)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "rolloutapproval.kuberik.com/%s\n", name)
 		return nil
 	},
 }
@@ -273,12 +300,12 @@ the version approved.`,
 		}
 		w := cmd.ErrOrStderr()
 		if deleted {
-			fmt.Fprintf(w, "Revoked approval of %s for %s/%s\n", args[1], namespace, args[0])
+			_, _ = fmt.Fprintf(w, "Revoked approval of %s for %s/%s\n", args[1], namespace, args[0])
 		} else {
-			fmt.Fprintf(w, "No approval of %s created by kuberik for %s/%s; nothing to delete\n", args[1], namespace, args[0])
+			_, _ = fmt.Fprintf(w, "No approval of %s created by kuberik for %s/%s; nothing to delete\n", args[1], namespace, args[0])
 		}
 		if len(remaining) > 0 {
-			fmt.Fprintf(w, "Still approved by other RolloutApprovals: %s\n", strings.Join(remaining, ", "))
+			_, _ = fmt.Fprintf(w, "Still approved by other RolloutApprovals: %s\n", strings.Join(remaining, ", "))
 		}
 		return nil
 	},
