@@ -9,6 +9,8 @@
 #     the incident_read scope):
 #       kubectl -n kuberik-system create secret generic datadog-credentials \
 #         --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
+#     With the Helm chart the Secret is wired only through
+#     integrations.datadog.existingSecret (default datadog-credentials).
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: HealthCheck
