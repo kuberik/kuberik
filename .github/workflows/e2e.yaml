@@ -43,6 +43,19 @@ jobs:
       - name: Install Kuberik via CLI
         run: kuberik install
 
+      - name: Update CRDs to the pinned rollout-controller commit
+        run: |
+          set -euo pipefail
+          # The latest release's install bundle (v0.11.0) ships a Rollout CRD
+          # without spec.releaseSourceRef, which "kuberik init rollout" emits, so
+          # applying that Rollout fails strict decoding. It also lacks the
+          # RolloutApproval CRD. Apply both CRDs from one pinned main commit that
+          # has them. Drop this once a release includes them.
+          base=https://raw.githubusercontent.com/kuberik/rollout-controller/b4fd4aaa23b034c3ac8dd9adc7cb530d18511b02/config/crd/bases
+          kubectl apply --server-side --force-conflicts -f "$base/kuberik.com_rollouts.yaml"
+          kubectl apply --server-side -f "$base/kuberik.com_rolloutapprovals.yaml"
+          kubectl wait --for=condition=Established --timeout=60s crd/rollouts.kuberik.com crd/rolloutapprovals.kuberik.com
+
       - name: Check Kuberik
         run: |
           # Give the controller a moment to come up
@@ -77,11 +90,6 @@ jobs:
       - name: Exercise approve/revoke
         run: |
           set -euo pipefail
-          # No rollout-controller release ships the RolloutApproval CRD yet, and
-          # the pinned install bundle (v0.9.2) predates it, so apply it from a
-          # pinned main commit. Drop this once a release includes it.
-          kubectl apply --server-side -f https://raw.githubusercontent.com/kuberik/rollout-controller/b4fd4aaa23b034c3ac8dd9adc7cb530d18511b02/config/crd/bases/kuberik.com_rolloutapprovals.yaml
-          kubectl wait --for=condition=Established --timeout=60s crd/rolloutapprovals.kuberik.com
           kuberik approve e2e-app v1.2.3 -n e2e
           kuberik approve e2e-app v1.2.3 -n e2e
           kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e -o jsonpath='{.spec.version}' | grep -q v1.2.3
