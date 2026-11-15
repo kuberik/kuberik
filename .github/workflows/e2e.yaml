@@ -60,7 +60,7 @@ jobs:
         run: |
           # Give the controller a moment to come up
           kubectl wait --for=condition=Available --timeout=120s \
-            deployment -n kuberik-system -l app.kubernetes.io/name=rollout-controller || true
+            deployment -n kuberik-system -l app.kubernetes.io/name=rollout-controller
           kuberik check
 
       - name: Smoke test get commands
