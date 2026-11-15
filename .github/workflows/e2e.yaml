@@ -74,13 +74,12 @@ jobs:
           kuberik tree e2e-app -n e2e | tee /tmp/tree.txt
           grep -q 'RolloutGate/e2e-gate' /tmp/tree.txt
 
-      - name: Exercise approve/reject/suspend/resume
+      - name: Exercise approve/revoke
         run: |
           set -euo pipefail
-          kuberik approve e2e-gate -n e2e
-          kubectl get rolloutgate e2e-gate -n e2e -o jsonpath='{.spec.passing}' | grep -q true
-          kuberik reject e2e-gate -n e2e
-          kubectl get rolloutgate e2e-gate -n e2e -o jsonpath='{.spec.passing}' | grep -q false
-          kuberik suspend e2e-app -n e2e
-          kubectl get rollout e2e-app -n e2e -o jsonpath='{.metadata.annotations.rollout\.kuberik\.com/suspended}' | grep -q true
-          kuberik resume e2e-app -n e2e
+          kuberik approve e2e-app v1.2.3 -n e2e
+          kuberik approve e2e-app v1.2.3 -n e2e
+          kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e -o jsonpath='{.spec.version}' | grep -q v1.2.3
+          kuberik revoke e2e-app v1.2.3 -n e2e
+          kuberik revoke e2e-app v1.2.3 -n e2e
+          ! kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e

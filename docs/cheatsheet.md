@@ -6,7 +6,7 @@ One-page reference. For depth, see the linked docs.
 
 ```bash
 brew install kuberik/tap/kuberik              # CLI
-kuberik bootstrap                             # Flux + Kuberik core
+kuberik bootstrap                             # Flux (source, kustomize) + Kuberik core
 kuberik bootstrap --all                       # + all integrations
 helm install kuberik kuberik/kuberik \
   -n kuberik-system --create-namespace \
@@ -33,9 +33,6 @@ rollout.kuberik.com/rollout: "my-app"
 # Or, to drive Kustomize substitution:
 rollout.kuberik.com/substitute.IMAGE_TAG.from: "my-app"
 
-# On a Rollout, to pause without changing gates:
-rollout.kuberik.com/suspended: "true"
-
 # Emergency: skip gates for a specific version (use with care):
 rollout.kuberik.com/bypass-gates: "v1.2.3"
 
@@ -53,13 +50,11 @@ kuberik check                        # CRDs + controller pods
 kuberik get rollouts|gates|healthchecks [-A]
 kuberik describe rollout|gate|healthcheck NAME
 kuberik tree ROLLOUT                 # gates + healthchecks tree
-kuberik approve GATE                 # spec.passing=true
-kuberik reject GATE                  # spec.passing=false
-kuberik suspend ROLLOUT
-kuberik resume ROLLOUT
+kuberik approve ROLLOUT VERSION      # create the RolloutApproval
+kuberik revoke ROLLOUT VERSION       # delete it
 kuberik logs [-f] [--tail N]
 kuberik events [-A] [-w]
-kuberik init rollout|gate|schedule --name X
+kuberik init rollout|releasesource|gate|schedule|healthcheck --name X
 kuberik completion {bash,zsh,fish,powershell}
 ```
 
@@ -81,9 +76,9 @@ kubectl get rolloutgate -n production -o name | \
 kubectl get events -n production --field-selector \
   involvedObject.name=my-app
 
-# Suspend then resume:
-kuberik suspend my-app -n production
-kuberik resume  my-app -n production
+# Hold a rollout on one version (pin), then release it:
+kubectl patch rollout my-app -n production --type=merge -p '{"spec":{"wantedVersion":"v1.2.3"}}'
+kubectl patch rollout my-app -n production --type=merge -p '{"spec":{"wantedVersion":null}}'
 ```
 
 ## Metrics worth alerting on
