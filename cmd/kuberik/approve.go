@@ -160,12 +160,16 @@ func approveVersion(ns, rollout, version string) (string, error) {
 	// dashboard's Approve does). The gate write comes first so a refused gate
 	// update leaves nothing half-written; it is undone if the create fails.
 	changed, err := setLegacyGateVersion(ns, rollout, version, true, nil)
-	if err != nil {
+	forbidden := errors.Is(err, errGatesForbidden)
+	if err != nil && !forbidden {
 		return "", err
 	}
 	name, err = createApproval(ns, rollout, version, name, string(body))
 	if err != nil && !errors.Is(err, errAlreadyApproved) {
 		undoLegacyGates(ns, rollout, version, true, changed)
+	}
+	if forbidden && (err == nil || errors.Is(err, errAlreadyApproved)) {
+		warnStaleLegacyGates(ns, rollout, version, true, checkLegacyGatesFromStatus(ns, rollout, version, true))
 	}
 	return name, err
 }
@@ -221,23 +225,32 @@ func revokeVersion(ns, rollout, version string) (deleted bool, remaining []strin
 	default:
 		return false, nil, fmt.Errorf("read RolloutApproval %s/%s: %w", ns, name, gerr)
 	}
-	if lout, lerr := kubectlRun("", "-n", ns, "get", rolloutApprovalKind, "-o", "json"); lerr == nil {
+	lout, lerr := kubectlRun("", "-n", ns, "get", rolloutApprovalKind, "-o", "json")
+	switch {
+	case lerr == nil:
 		var list struct {
 			Items []approvalObj `json:"items"`
 		}
-		if json.Unmarshal([]byte(lout), &list) == nil {
-			for _, a := range list.Items {
-				if a.Spec.RolloutRef.Name == rollout && a.Spec.Version == version && (!ours || a.Metadata.Name != name) {
-					remaining = append(remaining, a.Metadata.Name)
-				}
+		if err := json.Unmarshal([]byte(lout), &list); err != nil {
+			return false, nil, fmt.Errorf("list RolloutApprovals in %s: unreadable response: %w", ns, err)
+		}
+		for _, a := range list.Items {
+			if a.Spec.RolloutRef.Name == rollout && a.Spec.Version == version && (!ours || a.Metadata.Name != name) {
+				remaining = append(remaining, a.Metadata.Name)
 			}
 		}
+	case crdMissing(lerr):
+	default:
+		return false, nil, fmt.Errorf("list RolloutApprovals in %s: %w", ns, lerr)
 	}
 	// Legacy gates lose the version only when nothing else still approves it.
 	// Gate first: a refused gate update leaves the approval in place.
 	var changed []string
+	forbidden := false
 	if len(remaining) == 0 {
-		if changed, err = setLegacyGateVersion(ns, rollout, version, false, nil); err != nil {
+		changed, err = setLegacyGateVersion(ns, rollout, version, false, nil)
+		forbidden = errors.Is(err, errGatesForbidden)
+		if err != nil && !forbidden {
 			return false, nil, err
 		}
 	}
@@ -245,6 +258,13 @@ func revokeVersion(ns, rollout, version string) (deleted bool, remaining []strin
 		if _, derr := kubectlRun("", "-n", ns, "delete", rolloutApprovalKind, name, "--ignore-not-found"); derr != nil {
 			undoLegacyGates(ns, rollout, version, false, changed)
 			return false, remaining, fmt.Errorf("delete RolloutApproval %s/%s: %w", ns, name, derr)
+		}
+	}
+	if forbidden {
+		// The approval is gone, but gates the caller cannot list may still allow the version.
+		if stale := checkLegacyGatesFromStatus(ns, rollout, version, false); len(stale) > 0 {
+			warnStaleLegacyGates(ns, rollout, version, false, stale)
+			return ours, remaining, fmt.Errorf("%w: %s", errLegacyGatesStale, strings.Join(stale, ", "))
 		}
 	}
 	return ours, remaining, nil
@@ -295,9 +315,10 @@ the version approved.`,
 			return err
 		}
 		deleted, remaining, err := revokeVersion(namespace, args[0], args[1])
-		if err != nil {
+		if err != nil && !errors.Is(err, errLegacyGatesStale) {
 			return err
 		}
+		staleErr := err
 		w := cmd.ErrOrStderr()
 		if deleted {
 			_, _ = fmt.Fprintf(w, "Revoked approval of %s for %s/%s\n", args[1], namespace, args[0])
@@ -307,7 +328,7 @@ the version approved.`,
 		if len(remaining) > 0 {
 			_, _ = fmt.Fprintf(w, "Still approved by other RolloutApprovals: %s\n", strings.Join(remaining, ", "))
 		}
-		return nil
+		return staleErr
 	},
 }
 

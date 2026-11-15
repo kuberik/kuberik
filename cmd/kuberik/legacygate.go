@@ -2,10 +2,23 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
+
+// warnOut receives warnings that must not fail the command; tests replace it.
+var warnOut io.Writer = os.Stderr
+
+// errGatesForbidden marks a caller without permission to list RolloutGates.
+var errGatesForbidden = errors.New("not allowed to list RolloutGates")
+
+// errLegacyGatesStale is returned, after the work is done, when a legacy
+// approval gate still disagrees with the intended state and the caller has no
+// right to edit it.
+var errLegacyGatesStale = errors.New("legacy approval gates still disagree")
 
 const (
 	rolloutGateKind = "rolloutgates.kuberik.com"
@@ -62,13 +75,17 @@ func crdMissing(err error) bool {
 // gate names. It returns the names of the gates actually changed. A failed
 // update rolls back the gates already changed in the call.
 //
-// A caller without permission to list gates sees none: that is not an error,
-// so approving works without gate rights when no legacy gate exists.
+// A cluster without the RolloutGate CRD has no legacy gates: that is silent.
+// A caller without permission to list gates gets errGatesForbidden; callers
+// fall back to checkLegacyGatesFromStatus.
 func setLegacyGateVersion(ns, rollout, version string, add bool, only map[string]bool) ([]string, error) {
 	out, err := kubectlRun("", "-n", ns, "get", rolloutGateKind, "-o", "json")
 	if err != nil {
-		if crdMissing(err) || strings.Contains(err.Error(), "Forbidden") {
+		if crdMissing(err) {
 			return nil, nil
+		}
+		if strings.Contains(err.Error(), "Forbidden") {
+			return nil, errGatesForbidden
 		}
 		return nil, fmt.Errorf("list RolloutGates in %s: %w", ns, err)
 	}
@@ -170,4 +187,57 @@ func undoLegacyGates(ns, rollout, version string, add bool, names []string) {
 	if _, err := setLegacyGateVersion(ns, rollout, version, !add, only); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "warning: could not undo the legacy approval gate change for %s/%s %q: %v\n", ns, rollout, version, err)
 	}
+}
+
+// checkLegacyGatesFromStatus is the fallback for a caller who cannot list
+// RolloutGates. The Rollout's status.gates (readable with get rollouts) carries
+// each gate's name and allowedVersions. It returns the gates whose
+// allowedVersions disagree with the wanted state: for add, a non-nil list
+// lacking the version; otherwise a list still containing it. If the status
+// cannot be read it warns once and returns nil.
+func checkLegacyGatesFromStatus(ns, rollout, version string, add bool) []string {
+	out, err := kubectlRun("", "-n", ns, "get", rolloutKind, rollout, "-o", "json")
+	var ro struct {
+		Status struct {
+			Gates []struct {
+				Name            string    `json:"name"`
+				AllowedVersions *[]string `json:"allowedVersions"`
+			} `json:"gates"`
+		} `json:"status"`
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(out), &ro)
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(warnOut, "warning: could not check legacy approval gates of %s/%s (not allowed to list RolloutGates, status unreadable: %v); someone with RolloutGate update rights should check that the gates allow exactly the versions you intend\n", ns, rollout, err)
+		return nil
+	}
+	var stale []string
+	for _, g := range ro.Status.Gates {
+		if g.AllowedVersions == nil {
+			continue
+		}
+		has := false
+		for _, v := range *g.AllowedVersions {
+			has = has || v == version
+		}
+		if has != add {
+			stale = append(stale, g.Name)
+		}
+	}
+	return stale
+}
+
+// warnStaleLegacyGates tells the caller which gates could not be updated.
+func warnStaleLegacyGates(ns, rollout, version string, add bool, gates []string) {
+	if len(gates) == 0 {
+		return
+	}
+	state := "still allows"
+	want := "remove"
+	if add {
+		state = "does not yet allow"
+		want = "add"
+	}
+	_, _ = fmt.Fprintf(warnOut, "warning: you are not allowed to list RolloutGates, so legacy approval gate(s) %s of %s/%s were not updated and %s %q. Someone with RolloutGate update rights must edit each gate's spec.allowedVersions and %s that version.\n", strings.Join(gates, ", "), ns, rollout, state, version, want)
 }

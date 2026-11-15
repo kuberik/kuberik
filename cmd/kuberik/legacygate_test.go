@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +22,12 @@ type fakeCluster struct {
 	replaces   map[string]int
 	whoami     string
 	listGates  error
+	// rolloutStatus is the status object of the Rollout; rolloutErr fails reading it.
+	rolloutStatus map[string]any
+	rolloutErr    error
+	rolloutGets   int
+	rolloutOK     int // reads that succeed before rolloutErr applies
+	listApprovals error
 }
 
 func newFakeCluster() *fakeCluster {
@@ -64,14 +72,25 @@ func (f *fakeCluster) run(stdin string, args []string) (string, error) {
 	case args[0] == "auth":
 		return `{"status":{"userInfo":{"username":"` + f.whoami + `"}}}`, nil
 	case args[2] == "get" && args[3] == rolloutKind:
-		return `{"metadata":{"uid":"u"}}`, nil
+		f.rolloutGets++
+		// The first read fetches the uid; later ones are the status fallback.
+		if f.rolloutErr != nil && f.rolloutGets > f.rolloutOK {
+			return "", f.rolloutErr
+		}
+		b, _ := json.Marshal(map[string]any{"metadata": map[string]any{"uid": "u"}, "status": f.rolloutStatus})
+		return string(b), nil
 	case args[2] == "get" && args[3] == rolloutGateKind && len(args) == 6:
 		if f.listGates != nil {
 			return "", f.listGates
 		}
+		names := []string{}
+		for n := range f.gates {
+			names = append(names, n)
+		}
+		sort.Strings(names)
 		items := []any{}
-		for _, g := range f.gates {
-			items = append(items, g)
+		for _, n := range names {
+			items = append(items, f.gates[n])
 		}
 		b, _ := json.Marshal(map[string]any{"items": items})
 		return string(b), nil
@@ -113,6 +132,9 @@ func (f *fakeCluster) run(stdin string, args []string) (string, error) {
 		b, _ := json.Marshal(a)
 		return string(b), nil
 	case args[2] == "get" && args[3] == rolloutApprovalKind:
+		if f.listApprovals != nil {
+			return "", f.listApprovals
+		}
 		items := []any{}
 		for _, a := range f.approvals {
 			items = append(items, a)
@@ -280,5 +302,177 @@ func TestApproveCollisionUndoesGateWrite(t *testing.T) {
 	}
 	if got := f.versions(t, "manual"); len(got) != 0 {
 		t.Fatalf("gate write not undone: %v", got)
+	}
+}
+
+func captureWarnings(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	old := warnOut
+	warnOut = &buf
+	t.Cleanup(func() { warnOut = old })
+	return &buf
+}
+
+func gateStatus(entries ...any) map[string]any {
+	return map[string]any{"gates": entries}
+}
+
+func statusGate(name string, versions []string) map[string]any {
+	g := map[string]any{"name": name}
+	if versions != nil {
+		g["allowedVersions"] = versions
+	}
+	return g
+}
+
+const forbiddenGates = `Error from server (Forbidden): rolloutgates.kuberik.com is forbidden`
+
+func TestApproveForbiddenGatesWarnsFromRolloutStatus(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.rolloutStatus = gateStatus(statusGate("manual", []string{}), statusGate("done", []string{"v1.42.0"}), statusGate("kill", nil))
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, err := approveVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	got := warn.String()
+	if !strings.Contains(got, "manual") || strings.Contains(got, "done") || strings.Contains(got, "kill") || !strings.Contains(got, "RolloutGate update rights") {
+		t.Fatalf("warning = %q", got)
+	}
+}
+
+func TestApproveForbiddenGatesAllInSyncIsSilent(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.rolloutStatus = gateStatus(statusGate("done", []string{"v1.42.0"}))
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, err := approveVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("unexpected warning %q", warn.String())
+	}
+}
+
+func TestRevokeForbiddenGatesWarnsAndFailsAfterDelete(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.rolloutStatus = gateStatus(statusGate("manual", []string{"v1.42.0"}), statusGate("other", []string{"v1.1.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	deleted, _, err := revokeVersion("prod", "checkout", "v1.42.0")
+	if !errors.Is(err, errLegacyGatesStale) || !deleted {
+		t.Fatalf("deleted=%v err=%v", deleted, err)
+	}
+	if _, ok := f.approvals["checkout-v1-42-0"]; ok {
+		t.Fatal("approval should have been deleted")
+	}
+	got := warn.String()
+	if !strings.Contains(got, "manual") || strings.Contains(got, "other") || !strings.Contains(got, "RolloutGate update rights") {
+		t.Fatalf("warning = %q", got)
+	}
+}
+
+func TestRevokeForbiddenGatesSkipsCheckWhileAnotherApprovalRemains(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.rolloutStatus = gateStatus(statusGate("manual", []string{"v1.42.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	other := buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	other["metadata"].(map[string]any)["name"] = "release-1-42"
+	f.approvals["release-1-42"] = other
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, remaining, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil || len(remaining) != 1 {
+		t.Fatalf("remaining=%v err=%v", remaining, err)
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("unexpected warning %q", warn.String())
+	}
+}
+
+func TestForbiddenGatesAndUnreadableStatusWarnsUnconditionally(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.rolloutErr = errors.New("Error from server (Forbidden): rollouts is forbidden")
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatalf("unverifiable gates must not fail revoke: %v", err)
+	}
+	if !strings.Contains(warn.String(), "could not check legacy approval gates") {
+		t.Fatalf("warning = %q", warn.String())
+	}
+	warn.Reset()
+	f.rolloutGets, f.rolloutOK = 0, 1
+	if _, err := approveVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(warn.String(), "could not check legacy approval gates") {
+		t.Fatalf("warning = %q", warn.String())
+	}
+}
+
+func TestMissingGateCRDIsSilent(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(`error: the server doesn't have a resource type "rolloutgates"`)
+	f.rolloutStatus = gateStatus(statusGate("manual", []string{}))
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, err := approveVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("unexpected warning %q", warn.String())
+	}
+}
+
+func TestMultiGateFailureRollsBackEarlierGates(t *testing.T) {
+	f := newFakeCluster()
+	f.addGate("a-gate", "checkout", []string{"v1.40.0"}, nil)
+	f.addGate("b-gate", "checkout", []string{}, nil)
+	f.replaceErr = func(name string, _ int) error {
+		if name == "b-gate" {
+			return errors.New(`Error from server (Forbidden): rolloutgates is forbidden`)
+		}
+		return nil
+	}
+	useCluster(t, f)
+	if _, err := approveVersion("prod", "checkout", "v1.42.0"); err == nil {
+		t.Fatal("want error")
+	}
+	if got := strings.Join(f.versions(t, "a-gate"), ","); got != "v1.40.0" {
+		t.Fatalf("a-gate not restored: %q", got)
+	}
+	if f.replaces["a-gate"] != 2 {
+		t.Fatalf("a-gate replaces = %d, want write then restore", f.replaces["a-gate"])
+	}
+	if len(f.approvals) != 0 {
+		t.Fatal("approval created")
+	}
+}
+
+func TestRevokeFailedApprovalListIsAnError(t *testing.T) {
+	f := newFakeCluster()
+	f.addGate("manual", "checkout", []string{"v1.42.0"}, nil)
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	f.listApprovals = errors.New(`Error from server (Forbidden): rolloutapprovals is forbidden`)
+	useCluster(t, f)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err == nil || !strings.Contains(err.Error(), "list RolloutApprovals") {
+		t.Fatalf("want list error, got %v", err)
+	}
+	if got := strings.Join(f.versions(t, "manual"), ","); got != "v1.42.0" {
+		t.Fatalf("gate changed despite failed list: %q", got)
+	}
+	if _, ok := f.approvals["checkout-v1-42-0"]; !ok {
+		t.Fatal("approval deleted despite failed list")
 	}
 }
