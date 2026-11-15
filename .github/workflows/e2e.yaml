@@ -43,11 +43,24 @@ jobs:
       - name: Install Kuberik via CLI
         run: kuberik install
 
+      - name: Update CRDs to the pinned rollout-controller commit
+        run: |
+          set -euo pipefail
+          # The latest release's install bundle (v0.11.0) ships a Rollout CRD
+          # without spec.releaseSourceRef, which "kuberik init rollout" emits, so
+          # applying that Rollout fails strict decoding. It also lacks the
+          # RolloutApproval CRD. Apply both CRDs from one pinned main commit that
+          # has them. Drop this once a release includes them.
+          base=https://raw.githubusercontent.com/kuberik/rollout-controller/b4fd4aaa23b034c3ac8dd9adc7cb530d18511b02/config/crd/bases
+          kubectl apply --server-side --force-conflicts -f "$base/kuberik.com_rollouts.yaml"
+          kubectl apply --server-side -f "$base/kuberik.com_rolloutapprovals.yaml"
+          kubectl wait --for=condition=Established --timeout=60s crd/rollouts.kuberik.com crd/rolloutapprovals.kuberik.com
+
       - name: Check Kuberik
         run: |
           # Give the controller a moment to come up
           kubectl wait --for=condition=Available --timeout=120s \
-            deployment -n kuberik-system -l app.kubernetes.io/name=rollout-controller || true
+            deployment -n kuberik-system -l app.kubernetes.io/name=rollout-controller
           kuberik check
 
       - name: Smoke test get commands
@@ -74,13 +87,13 @@ jobs:
           kuberik tree e2e-app -n e2e | tee /tmp/tree.txt
           grep -q 'RolloutGate/e2e-gate' /tmp/tree.txt
 
-      - name: Exercise approve/reject/suspend/resume
+      - name: Exercise approve/revoke
         run: |
           set -euo pipefail
-          kuberik approve e2e-gate -n e2e
-          kubectl get rolloutgate e2e-gate -n e2e -o jsonpath='{.spec.passing}' | grep -q true
-          kuberik reject e2e-gate -n e2e
-          kubectl get rolloutgate e2e-gate -n e2e -o jsonpath='{.spec.passing}' | grep -q false
-          kuberik suspend e2e-app -n e2e
-          kubectl get rollout e2e-app -n e2e -o jsonpath='{.metadata.annotations.rollout\.kuberik\.com/suspended}' | grep -q true
-          kuberik resume e2e-app -n e2e
+          kuberik approve e2e-app v1.2.3 -n e2e
+          kuberik approve e2e-app v1.2.3 -n e2e
+          kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e -o jsonpath='{.spec.version}' | grep -q v1.2.3
+          kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e -o jsonpath='{.metadata.ownerReferences[0].name}' | grep -q e2e-app
+          kuberik revoke e2e-app v1.2.3 -n e2e
+          kuberik revoke e2e-app v1.2.3 -n e2e
+          ! kubectl get rolloutapproval e2e-app-v1-2-3 -n e2e

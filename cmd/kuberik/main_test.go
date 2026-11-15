@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -10,8 +12,8 @@ import (
 func TestRootCommand(t *testing.T) {
 	want := []string{
 		"version", "install", "uninstall", "check", "get",
-		"approve", "reject", "completion",
-		"suspend", "resume", "describe", "logs", "events", "tree", "init",
+		"approve", "revoke", "completion",
+		"describe", "logs", "events", "tree", "init",
 		"bootstrap",
 	}
 	// Init subkinds the user can pass.
@@ -40,18 +42,31 @@ func TestVersionCommand(t *testing.T) {
 	// confirm the command resolved and executed without error.
 }
 
-// TestApproveRequiresArg ensures `approve` rejects missing arguments.
-func TestApproveRequiresArg(t *testing.T) {
-	out := &bytes.Buffer{}
-	rootCmd.SetOut(out)
-	rootCmd.SetErr(out)
-	rootCmd.SetArgs([]string{"approve"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("expected error for missing gate argument")
+// TestApproveRequiresArgs ensures `approve` and `revoke` need ROLLOUT and VERSION.
+func TestApproveRequiresArgs(t *testing.T) {
+	for _, name := range []string{"approve", "revoke"} {
+		for _, args := range [][]string{{name}, {name, "my-app"}} {
+			out := &bytes.Buffer{}
+			rootCmd.SetOut(out)
+			rootCmd.SetErr(out)
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+			if err == nil {
+				t.Fatalf("%v: expected an argument error", args)
+			}
+			if !strings.Contains(err.Error(), "accepts 2 arg") {
+				t.Errorf("%v: unexpected error: %v", args, err)
+			}
+		}
 	}
-	if !strings.Contains(err.Error(), "accepts 1 arg") {
-		t.Errorf("unexpected error: %v", err)
+}
+
+// TestRemovedCommands pins that the commands without a controller behind them are gone.
+func TestRemovedCommands(t *testing.T) {
+	for _, name := range []string{"suspend", "resume", "reject"} {
+		if c, _, _ := rootCmd.Find([]string{name}); c != nil && c != rootCmd {
+			t.Errorf("%q is still registered", name)
+		}
 	}
 }
 
@@ -82,4 +97,45 @@ func TestScopeFlags(t *testing.T) {
 	}
 	// reset so other tests are not affected
 	allNamespaces = false
+}
+
+func TestCheckFluxVersion(t *testing.T) {
+	for out, wantErr := range map[string]bool{
+		"flux version 2.7.1\n": false,
+		"flux version 2.6.0":   false,
+		"flux version 2.5.1":   true,
+		"flux version 1.9.0":   true,
+		"garbage":              true,
+	} {
+		if err := checkFluxVersion(out); (err != nil) != wantErr {
+			t.Errorf("checkFluxVersion(%q) = %v, wantErr %v", out, err, wantErr)
+		}
+	}
+}
+
+func TestInitScaffoldsReleaseSource(t *testing.T) {
+	for _, tc := range []struct{ kind, want string }{
+		{"rollout", "releaseSourceRef:"},
+		{"releasesource", "kind: ReleaseSource"},
+	} {
+		got, err := captureStdout(func() error {
+			rootCmd.SetArgs([]string{"init", tc.kind, "--name", "demo"})
+			return rootCmd.Execute()
+		})
+		if err != nil || !strings.Contains(got, tc.want) || strings.Contains(got, "releasesImagePolicy") {
+			t.Errorf("init %s: err=%v output=%q", tc.kind, err, got)
+		}
+	}
+}
+
+// captureStdout runs fn and returns what it wrote to os.Stdout.
+func captureStdout(fn func() error) (string, error) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := fn()
+	_ = w.Close()
+	os.Stdout = old
+	b, _ := io.ReadAll(r)
+	return string(b), err
 }

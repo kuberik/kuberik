@@ -50,10 +50,10 @@ sudo install bin/kuberik /usr/local/bin/
 
 ### `kuberik bootstrap`
 
-One-shot first-time install: Flux core (source, kustomize, image-reflector) followed by Kuberik.
+One-shot first-time install: the Flux source-controller and kustomize-controller (Flux 2.6 or newer), followed by Kuberik. Image-reflector is not installed: a ReleaseSource scans the registry itself, so you only need it to bridge an existing ImagePolicy (`spec.oci.imagePolicyRef`). The Flux step uses the `flux` CLI (`flux install --export`), which must be on `PATH`.
 
 ```bash
-kuberik bootstrap            # Flux core + Kuberik core
+kuberik bootstrap            # Flux source + kustomize controllers, then Kuberik core
 kuberik bootstrap --all      # + all integration controllers
 kuberik bootstrap --flux=false   # Kuberik only (Flux already installed)
 ```
@@ -80,7 +80,7 @@ kuberik uninstall
 
 ### `kuberik check`
 
-Verify Kuberik CRDs and the rollout-controller pod are present.
+Verify Kuberik CRDs and the rollout-controller pod are present. Also reports, without failing, whether the ReleaseSource and RolloutApproval CRDs and Flux image-reflector are installed.
 
 ```bash
 kuberik check
@@ -96,25 +96,20 @@ kuberik get gates -A            # across all namespaces
 kuberik get healthchecks -n production
 ```
 
-### `kuberik approve` / `kuberik reject`
+### `kuberik approve` / `kuberik revoke`
 
-Flip a RolloutGate's `spec.passing` field.
-
-```bash
-kuberik approve my-app-approval -n production
-kuberik reject  my-app-approval -n production
-```
-
-### `kuberik suspend` / `kuberik resume`
-
-Pause and resume a Rollout. While suspended, no new release is patched onto the target resource even if all gates pass.
+Approve or withdraw one release candidate of a Rollout. `approve` creates the same `RolloutApproval` the dashboard's Approve button creates; `revoke` deletes it.
 
 ```bash
-kuberik suspend my-app -n production
-kuberik resume  my-app -n production
+kuberik approve my-app v1.2.3 -n production
+kuberik revoke  my-app v1.2.3 -n production
 ```
 
-Suspension is recorded as the `rollout.kuberik.com/suspended` annotation, so you can also flip it with `kubectl annotate`.
+The object is named from the rollout and version (`my-app-v1-2-3`), owned by the Rollout, and carries your username in `approval.kuberik.com/by` (omitted for service accounts). Approving twice is a no-op; `revoke` of a missing approval succeeds. Approvals committed to git under other names are left alone and listed, because they keep the version approved.
+
+### Stopping deploys
+
+There is no `suspend` command. To hold a Rollout, pin it with `spec.wantedVersion` (set it to the version to stay on), or add a `RolloutSchedule` with `action: Deny` for the window (`kuberik init schedule`).
 
 ### `kuberik describe`
 
@@ -143,13 +138,14 @@ kuberik logs -f         # follow
 Scaffold a starter YAML manifest for a Kuberik resource. Writes to stdout so you can pipe it to a file or to `kubectl apply`.
 
 ```bash
+kuberik init releasesource --name webapp --image ghcr.io/my-org/webapp > source.yaml
 kuberik init rollout --name webapp > rollout.yaml
 kuberik init gate --name webapp-approval --rollout webapp -n production > gate.yaml
 kuberik init schedule --name business-hours > schedule.yaml
 kuberik init healthcheck --name webapp-error-rate -n production > hc.yaml
 ```
 
-Available kinds: `rollout`, `gate`, `schedule`, `healthcheck`.
+Available kinds: `rollout`, `releasesource`, `gate`, `schedule`, `healthcheck`. A Rollout's `spec.releaseSourceRef` names the ReleaseSource (`--release-source`, default `--name`).
 
 ### `kuberik tree`
 
@@ -193,5 +189,5 @@ The [Kuberik GitHub Action](../action/README.md) installs the CLI on a runner:
 
 ```yaml
 - uses: kuberik/kuberik/action@main
-- run: kuberik approve my-app-approval -n production
+- run: kuberik approve my-app v1.2.3 -n production
 ```
