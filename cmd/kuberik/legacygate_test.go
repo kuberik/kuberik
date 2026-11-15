@@ -28,6 +28,10 @@ type fakeCluster struct {
 	rolloutGets   int
 	rolloutOK     int // reads that succeed before rolloutErr applies
 	listApprovals error
+	// listApprovalsRaw, when set, is returned verbatim as the approval list.
+	listApprovalsRaw string
+	// getGateErr fails the single-gate get of the named gates.
+	getGateErr map[string]error
 }
 
 func newFakeCluster() *fakeCluster {
@@ -95,6 +99,9 @@ func (f *fakeCluster) run(stdin string, args []string) (string, error) {
 		b, _ := json.Marshal(map[string]any{"items": items})
 		return string(b), nil
 	case args[2] == "get" && args[3] == rolloutGateKind:
+		if err := f.getGateErr[args[4]]; err != nil {
+			return "", err
+		}
 		g, ok := f.gates[args[4]]
 		if !ok {
 			return "", errors.New("Error from server (NotFound)")
@@ -134,6 +141,9 @@ func (f *fakeCluster) run(stdin string, args []string) (string, error) {
 	case args[2] == "get" && args[3] == rolloutApprovalKind:
 		if f.listApprovals != nil {
 			return "", f.listApprovals
+		}
+		if f.listApprovalsRaw != "" {
+			return f.listApprovalsRaw, nil
 		}
 		items := []any{}
 		for _, a := range f.approvals {
@@ -474,5 +484,109 @@ func TestRevokeFailedApprovalListIsAnError(t *testing.T) {
 	}
 	if _, ok := f.approvals["checkout-v1-42-0"]; !ok {
 		t.Fatal("approval deleted despite failed list")
+	}
+}
+
+func forbidGets(f *fakeCluster, names ...string) {
+	f.getGateErr = map[string]error{}
+	for _, n := range names {
+		f.getGateErr[n] = errors.New(forbiddenGates)
+	}
+}
+
+func TestForbiddenGatesSkipGeneratedGatesByName(t *testing.T) {
+	for _, names := range [][]string{{"ghd-abcde", "dependency-db"}, {"approval-gate-x7k2p"}} {
+		f := newFakeCluster()
+		f.listGates = errors.New(forbiddenGates)
+		forbidGets(f, names...)
+		f.rolloutStatus = gateStatus(statusGate(names[0], []string{"v1.42.0"}), statusGate(names[len(names)-1], []string{"v1.42.0"}))
+		f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+		useCluster(t, f)
+		warn := captureWarnings(t)
+		if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+			t.Fatalf("%v: revoke = %v", names, err)
+		}
+		f.rolloutStatus = gateStatus(statusGate(names[0], []string{"v9.9.9"}))
+		if _, err := approveVersion("prod", "checkout", "v1.42.0"); err != nil {
+			t.Fatal(err)
+		}
+		if warn.Len() != 0 {
+			t.Fatalf("%v: unexpected warning %q", names, warn.String())
+		}
+	}
+}
+
+func TestForbiddenGatesSkipOwnedGateWhenGetSucceeds(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	f.addGate("custom", "checkout", []string{"v1.42.0"}, func(m map[string]any) {
+		m["ownerReferences"] = []any{map[string]any{"kind": "Thing", "name": "t"}}
+	})
+	f.rolloutStatus = gateStatus(statusGate("custom", []string{"v1.42.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatal(err)
+	}
+	if warn.Len() != 0 {
+		t.Fatalf("unexpected warning %q", warn.String())
+	}
+}
+
+func TestForbiddenGatesConfirmLegacyGateWhenGetSucceeds(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	// A confirmed legacy gate is reported even when its name looks generated.
+	f.addGate("ghd-legacy", "checkout", []string{"v1.42.0"}, nil)
+	f.rolloutStatus = gateStatus(statusGate("ghd-legacy", []string{"v1.42.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); !errors.Is(err, errLegacyGatesStale) {
+		t.Fatalf("err = %v", err)
+	}
+	got := warn.String()
+	if !strings.Contains(got, "ghd-legacy") || strings.Contains(got, "may be") {
+		t.Fatalf("warning = %q", got)
+	}
+}
+
+func TestForbiddenGatesUnprefixedUnreadableGateIsHedged(t *testing.T) {
+	f := newFakeCluster()
+	f.listGates = errors.New(forbiddenGates)
+	forbidGets(f, "manual")
+	f.rolloutStatus = gateStatus(statusGate("manual", []string{"v1.42.0"}))
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	useCluster(t, f)
+	warn := captureWarnings(t)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); !errors.Is(err, errLegacyGatesStale) {
+		t.Fatalf("err = %v", err)
+	}
+	if got := warn.String(); !strings.Contains(got, "manual") || !strings.Contains(got, "may be legacy approval gates") {
+		t.Fatalf("warning = %q", got)
+	}
+}
+
+func TestRevokeUnparseableApprovalListIsAnError(t *testing.T) {
+	f := newFakeCluster()
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	f.listApprovalsRaw = "not json"
+	useCluster(t, f)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err == nil || !strings.Contains(err.Error(), "unreadable response") {
+		t.Fatalf("want unreadable-list error, got %v", err)
+	}
+	if _, ok := f.approvals["checkout-v1-42-0"]; !ok {
+		t.Fatal("approval deleted despite unreadable list")
+	}
+}
+
+func TestRevokeMissingApprovalCRDListIsTolerated(t *testing.T) {
+	f := newFakeCluster()
+	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
+	f.listApprovals = errors.New(`error: the server doesn't have a resource type "rolloutapprovals"`)
+	useCluster(t, f)
+	if _, _, err := revokeVersion("prod", "checkout", "v1.42.0"); err != nil {
+		t.Fatalf("missing CRD list must be tolerated: %v", err)
 	}
 }

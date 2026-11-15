@@ -264,7 +264,7 @@ func revokeVersion(ns, rollout, version string) (deleted bool, remaining []strin
 		// The approval is gone, but gates the caller cannot list may still allow the version.
 		if stale := checkLegacyGatesFromStatus(ns, rollout, version, false); len(stale) > 0 {
 			warnStaleLegacyGates(ns, rollout, version, false, stale)
-			return ours, remaining, fmt.Errorf("%w: %s", errLegacyGatesStale, strings.Join(stale, ", "))
+			return ours, remaining, fmt.Errorf("%w: %s", errLegacyGatesStale, strings.Join(staleNames(stale), ", "))
 		}
 	}
 	return ours, remaining, nil
