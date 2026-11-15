@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -43,14 +42,14 @@ func applyArgs(source, ref string) []string {
 }
 
 // kubectlRun runs kubectl with the global flags, feeding stdin (may be empty)
-// and returning stdout. Stderr is passed through to the user, and also
-// captured in the returned error text so callers can recognise API errors.
+// and returning stdout. Stderr is captured into the returned error text so
+// callers can recognise API errors (AlreadyExists, NotFound) and report them once.
 // A package variable so tests can replace it without a cluster.
 var kubectlRun = func(stdin string, args ...string) (string, error) {
 	cmd := kubectl(args...)
 	var out, errBuf bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = io.MultiWriter(os.Stderr, &errBuf)
+	cmd.Stderr = &errBuf
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	} else {
