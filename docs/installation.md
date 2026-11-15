@@ -43,7 +43,7 @@ kubectl apply -f https://github.com/kuberik/prometheus-controller/releases/lates
 
 ## Prerequisites
 
-- Kubernetes 1.25 or newer
+- Kubernetes 1.30 or newer (the approval admission policies need it)
 - [Flux v2.6 or later](https://fluxcd.io/docs/installation/) with source-controller and kustomize-controller. `image-reflector-controller` is optional: release-controller's `ReleaseSource` scans the registry itself, and only needs it if you point `spec.oci.imagePolicyRef` at an existing ImagePolicy.
 
 ## Installing the CLI
