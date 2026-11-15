@@ -13,13 +13,15 @@ or, with the kuberik CLI:
 
 Next steps:
 
-  1. Install Flux's image-reflector-controller (Kuberik discovers releases
-     through Flux ImagePolicy):
+  1. Install Flux 2.6 or later with source-controller and kustomize-controller
+     (image-reflector-controller is optional):
 
-         flux install --components=source-controller,kustomize-controller,image-reflector-controller
+         flux install --components=source-controller,kustomize-controller
 
-  2. Define an ImageRepository + ImagePolicy for each app you want Kuberik
-     to track.
+  2. Install release-controller and define a ReleaseSource for each app you
+     want Kuberik to track. It lists the image's tags from the registry
+     itself; no Flux ImagePolicy is needed. A Rollout reads it with
+     spec.releaseSourceRef.
 
   3. Create your first Rollout. See:
 

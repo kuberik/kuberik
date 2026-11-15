@@ -1,0 +1,16 @@
+# Sample ReleaseSource: release-controller lists the tags of this image in
+# the registry and keeps the catalogue the sample Rollout reads.
+# To reuse an existing Flux ImagePolicy instead, set
+# spec.oci.imagePolicyRef.name and drop image and policy.
+---
+apiVersion: kuberik.com/v1alpha1
+kind: ReleaseSource
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  oci:
+    image: ghcr.io/myorg/my-app
+    policy:
+      semver:
+        range: ">=1.0.0"

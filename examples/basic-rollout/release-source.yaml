@@ -1,0 +1,18 @@
+# A ReleaseSource: release-controller lists the tags of this image in the
+# registry itself, orders them by the policy, and keeps the catalogue the
+# Rollout reads. No Flux ImageRepository or ImagePolicy is involved.
+#
+# Requires release-controller installed (see its README).
+---
+apiVersion: kuberik.com/v1alpha1
+kind: ReleaseSource
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  oci:
+    image: ghcr.io/myorg/my-app
+    policy:
+      semver:
+        range: ">=1.0.0"
+  interval: 1m

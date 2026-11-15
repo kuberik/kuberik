@@ -4,8 +4,9 @@ This guide walks you through installing Kuberik and deploying your first Rollout
 
 ## Prerequisites
 
-- Kubernetes cluster (1.25+)
-- [Flux v2](https://fluxcd.io/docs/installation/) installed with the image-reflector-controller component
+- Kubernetes cluster (1.30+)
+- [Flux v2.6 or later](https://fluxcd.io/docs/installation/) with source-controller and kustomize-controller. image-reflector-controller is optional.
+- release-controller, which provides the `ReleaseSource` resource (see its [README](https://github.com/kuberik/release-controller) for the install)
 - `kubectl` configured to access your cluster
 
 ## Install
@@ -30,32 +31,25 @@ kubectl get pods -n kuberik-system
 
 ## Deploy Your First Rollout
 
-### 1. Set up Flux image tracking
+### 1. Create a ReleaseSource
 
-Kuberik uses Flux's `ImageRepository` and `ImagePolicy` to discover new releases. If you already have these configured, skip to step 2.
+A `ReleaseSource` lists the tags of your image in the registry and orders them by a policy. release-controller does the scanning itself; no Flux ImageRepository or ImagePolicy is needed.
 
 ```yaml
-apiVersion: image.toolkit.fluxcd.io/v1beta2
-kind: ImageRepository
+apiVersion: kuberik.com/v1alpha1
+kind: ReleaseSource
 metadata:
   name: my-app
-  namespace: flux-system
+  namespace: default
 spec:
-  image: ghcr.io/myorg/my-app
-  interval: 1m
----
-apiVersion: image.toolkit.fluxcd.io/v1beta2
-kind: ImagePolicy
-metadata:
-  name: my-app
-  namespace: flux-system
-spec:
-  imageRepositoryRef:
-    name: my-app
-  policy:
-    semver:
-      range: '>=1.0.0'
+  oci:
+    image: ghcr.io/myorg/my-app
+    policy:
+      semver:
+        range: '>=1.0.0'
 ```
+
+If you already have a Flux `ImagePolicy`, `spec.oci.imagePolicyRef: {name: my-app}` reads the image and policy from it instead.
 
 ### 2. Create a Rollout
 
@@ -66,7 +60,7 @@ metadata:
   name: my-app
   namespace: default
 spec:
-  releasesImagePolicy:
+  releaseSourceRef:
     name: my-app
   versionHistoryLimit: 10
   bakeTime: "10m"
@@ -119,29 +113,45 @@ kubectl get rollouts
 kubectl describe rollout my-app
 ```
 
-The rollout controller will automatically detect new releases from the ImagePolicy and promote them through your pipeline.
+The rollout controller will automatically detect new releases from the ReleaseSource and promote them through your pipeline.
 
-## Add a Deployment Gate
+## Require an approval
 
-Gates block a rollout from proceeding until a condition is met. Create a manual approval gate:
+An `ApprovalPolicy` makes every matching Rollout wait for a person to approve each version. Approvals are per-version `RolloutApproval` objects, which the dashboard creates when someone presses Approve.
 
 ```yaml
 apiVersion: kuberik.com/v1alpha1
-kind: RolloutGate
+kind: ApprovalPolicy
 metadata:
-  name: my-app-approval
+  name: manual-approval
+  namespace: default
+spec:
+  rolloutSelector:
+    matchLabels:
+      kuberik.com/approval: required
+```
+
+Label the Rollout to opt it in:
+
+```bash
+kubectl label rollout my-app kuberik.com/approval=required
+```
+
+To approve a version by hand, create the object (see [examples/with-gate](../examples/with-gate)):
+
+```yaml
+apiVersion: kuberik.com/v1alpha1
+kind: RolloutApproval
+metadata:
+  name: my-app-1-0-1
   namespace: default
 spec:
   rolloutRef:
     name: my-app
-  passing: false
+  version: "1.0.1"
 ```
 
-Set `passing: true` when you are ready to approve:
-
-```bash
-kubectl patch rolloutgate my-app-approval -p '{"spec":{"passing":true}}'
-```
+The first deploy of a Rollout with no history is not held. Other gates (schedules, health, dependencies) are described in [Gates](gates.md).
 
 ## Next Steps
 

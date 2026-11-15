@@ -1,6 +1,6 @@
 # Restrict promotions to business hours, weekdays only.
 #
-# `action: Allow` means the gate is open during the window and closed
+# `action: Allow` (the default is Deny) means the gate is open during the window and closed
 # outside it - so promotions happen only between 9am and 5pm Eastern,
 # Monday through Friday.
 #
