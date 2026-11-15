@@ -24,6 +24,7 @@ This applies a [kustomize bundle](../config/install/kustomization.yaml) that pin
 | Component | Install URL | Required? |
 | --- | --- | --- |
 | rollout-controller | `https://github.com/kuberik/rollout-controller/releases/latest/download/install.yaml` | yes |
+| release-controller | no release yet; from a [checkout](https://github.com/kuberik/release-controller): `kustomize build config/default \| kubectl apply -f -` | yes, a Rollout reads its releases from a `ReleaseSource` |
 | rollout-dashboard | `https://github.com/kuberik/rollout-dashboard/releases/latest/download/install.yaml` | no |
 | datadog-controller | `https://github.com/kuberik/datadog-controller/releases/latest/download/install.yaml` | no |
 | prometheus-controller | `https://github.com/kuberik/prometheus-controller/releases/latest/download/install.yaml` | no |
@@ -43,7 +44,7 @@ kubectl apply -f https://github.com/kuberik/prometheus-controller/releases/lates
 ## Prerequisites
 
 - Kubernetes 1.25 or newer
-- [Flux v2](https://fluxcd.io/docs/installation/) with the `image-reflector-controller` component (required by rollout-controller for ImagePolicy tracking)
+- [Flux v2.6 or later](https://fluxcd.io/docs/installation/) with source-controller and kustomize-controller. `image-reflector-controller` is optional: release-controller's `ReleaseSource` scans the registry itself, and only needs it if you point `spec.oci.imagePolicyRef` at an existing ImagePolicy.
 
 ## Installing the CLI
 

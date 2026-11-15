@@ -10,11 +10,11 @@ Flagger automates progressive delivery on a single workload (traffic shift + met
 
 ## Do I have to use Flux?
 
-Yes, currently. Kuberik reads release information from Flux's `ImagePolicy` resource and patches Flux's `OCIRepository` / `Kustomization` when promoting. Future versions may add adapters for other GitOps engines, but Flux is the only first-class integration today.
+Yes, currently. Kuberik patches Flux's `OCIRepository` / `Kustomization` when promoting. Releases come from a `ReleaseSource`, which scans the registry itself; Flux's image-reflector-controller is optional. Any Flux source works for image-tag mode (`GitRepository`, `OCIRepository` or `Bucket`), and Flux 2.6 or later is required. Future versions may add adapters for other GitOps engines, but Flux is the only first-class integration today.
 
 ## Do I have to use all the controllers?
 
-No. The **rollout-controller** is the only required component. Integration controllers (datadog, prometheus, openkruise, environment) are optional - install only the ones you need.
+No. The **rollout-controller** and **release-controller** (which provides `ReleaseSource`) are the required components. Integration controllers (datadog, prometheus, openkruise, environment) are optional - install only the ones you need.
 
 ## Can I write my own integration controller?
 
@@ -24,8 +24,8 @@ Yes - that's the design. Any controller that creates `HealthCheck` or `RolloutGa
 
 Most common causes, in order:
 
-1. The `ImagePolicy` has no `latestRef.tag` set - check the upstream `ImageRepository` and your registry.
-2. A `RolloutGate` is `passing: false` - run `kuberik tree my-app` to see which.
+1. The `ReleaseSource` has no `status.newest` - check its image, policy and registry credentials.
+2. A `RolloutGate` is `passing: false` - run `kuberik tree my-app` to see which. If an `ApprovalPolicy` owns it, the version needs a `RolloutApproval`.
 3. A `HealthCheck` is unhealthy or `lastErrorTime` is more recent than bake start.
 4. The target `OCIRepository` / `Kustomization` is missing the `rollout.kuberik.com/rollout` annotation.
 

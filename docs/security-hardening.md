@@ -10,7 +10,7 @@ If you install via kustomize (`kuberik install`) and want to enforce them, copy 
 
 ## RBAC scope
 
-The rollout-controller installs cluster-wide RBAC because it reconciles `ClusterRolloutSchedule` and reads `ImagePolicy` across namespaces. For multi-tenant clusters where rollout-controller should be scoped to specific namespaces:
+The rollout-controller installs cluster-wide RBAC because it reconciles `ClusterRolloutSchedule` and reads release catalogues (`ReleaseSlice`) across namespaces. For multi-tenant clusters where rollout-controller should be scoped to specific namespaces:
 
 1. Don't apply the `clusterrolloutschedules.kuberik.com` CRD.
 2. Replace the `rollout-controller-manager` ClusterRole with a namespaced Role per tenant namespace.

@@ -8,21 +8,21 @@ Symptoms: `kuberik get rollouts` shows the Rollout but `status.latestRelease` st
 
 Check, in order:
 
-1. **The ImagePolicy has a `latestRef`.**
+1. **The ReleaseSource has found the tags.**
    ```bash
-   kubectl get imagepolicy -n flux-system <name> -o yaml
+   kubectl get releasesource -n <namespace> <name> -o yaml
    ```
-   `status.latestRef.tag` must be set. If empty, the image-reflector-controller has not seen any matching tags. Check the `ImageRepository` and your image registry.
+   `status.newest.tag` must be set and `Ready` must be `True`. If empty, release-controller has not seen any tag matching the source's policy. Check `spec.oci.image`, `spec.oci.policy` and your registry credentials (`spec.oci.secretRef`). If the source reads a Flux ImagePolicy through `imagePolicyRef`, check that ImagePolicy and its ImageRepository too.
 
-2. **The Rollout points at the right ImagePolicy.**
-   `spec.releasesImagePolicy.{name,namespace}` must match the existing ImagePolicy.
+2. **The Rollout points at the right ReleaseSource.**
+   `spec.releaseSourceRef.name` must name a ReleaseSource in the Rollout's namespace. A Rollout without it reports `Ready=False` with reason `ReleaseSourceRequired`, and `ReleaseSourceReady` says which source is missing or not ready.
 
 3. **No gate is blocking the rollout.**
    ```bash
    kuberik get gates -n <namespace>
    kubectl describe rollout <name> -n <namespace>
    ```
-   The `Promoting` condition lists the blocking gate by name. Approve it with `kuberik approve <gate>` if appropriate.
+   The `Promoting` condition lists the blocking gate by name. If the gate belongs to an `ApprovalPolicy`, approve the version in the dashboard or create a `RolloutApproval` for it (see [Gates](gates.md#approvals)).
 
 4. **No HealthCheck is unhealthy.**
    ```bash
@@ -33,7 +33,7 @@ Check, in order:
 5. **The target resource has the annotation.**
    The OCIRepository or Kustomization the Rollout patches must carry either:
    - `rollout.kuberik.com/rollout: "<rollout-name>"`, or
-   - `rollout.kuberik.com/substitute.<VAR>.from: "<image-policy-name>"`
+   - `rollout.kuberik.com/substitute.<VAR>.from: "<rollout-name>"` (on a Kustomization)
    Without the annotation, the controller has no target to patch.
 
 ## `kuberik check` says CRDs are missing
@@ -48,7 +48,7 @@ kubectl config current-context
 kuberik install
 ```
 
-If you see "ImagePolicy not registered", the Flux image-reflector-controller is missing. Install Flux with the image-reflector component (see [installation](installation.md)).
+If `ReleaseSource` is not found, release-controller is not installed (see [installation](installation.md)). Flux's image-reflector-controller is only needed when a ReleaseSource reads an `ImagePolicy` through `imagePolicyRef`.
 
 ## A bake fails immediately
 
@@ -73,16 +73,17 @@ Common causes:
   kuberik install --all
   ```
 
-## Manual approval gate keeps re-blocking
+## A gate keeps re-blocking
 
-If `kuberik approve <gate>` is overridden right after you run it, a `RolloutSchedule` is probably reconciling the gate back to its scheduled value. Check:
+If you flip a gate's `spec.passing` and it is reset right after, the gate is owned by a `RolloutSchedule`, `ApprovalPolicy` or environment-controller, which reconciles it back. Check:
 
 ```bash
 kubectl get rolloutschedule -A
 kubectl get clusterrolloutschedule
+kubectl get rolloutgate -n <namespace> --show-labels
 ```
 
-If a schedule owns the gate, change the schedule rather than the gate.
+The `gate.kuberik.com/*-name` labels say which object owns the gate. Change that object, not the gate. To approve a version, use a `RolloutApproval`, not `passing`.
 
 ## Asking for help
 
