@@ -82,7 +82,7 @@ If you flip a gate's `spec.passing` and it is reset right after, a controller ow
 
 Two other kinds of gate block without being reset:
 
-- `ghd-*` gates belong to the environment-controller. They block through `spec.allowedVersions`, which the environment-controller sets to the versions the earlier environment has deployed; `passing` does not open them. Find their owner through the owner reference, not a label.
+- `ghd-*` gates belong to the environment-controller. They block through `spec.allowedVersions`, which the environment-controller sets to the versions the earlier environment (or the previous wave) has deployed; `passing` does not open them. Find their owner through the owner reference, not a label.
 - Gates owned by an `ApprovalPolicy` or `ClusterApprovalPolicy`: when the rollout-controller's admission policies are installed, an edit to them is refused outright.
 
 Check who owns a gate:
