@@ -10,8 +10,8 @@ import (
 func TestRootCommand(t *testing.T) {
 	want := []string{
 		"version", "install", "uninstall", "check", "get",
-		"approve", "reject", "completion",
-		"suspend", "resume", "describe", "logs", "events", "tree", "init",
+		"approve", "revoke", "completion",
+		"describe", "logs", "events", "tree", "init",
 		"bootstrap",
 	}
 	// Init subkinds the user can pass.
@@ -40,18 +40,31 @@ func TestVersionCommand(t *testing.T) {
 	// confirm the command resolved and executed without error.
 }
 
-// TestApproveRequiresArg ensures `approve` rejects missing arguments.
-func TestApproveRequiresArg(t *testing.T) {
-	out := &bytes.Buffer{}
-	rootCmd.SetOut(out)
-	rootCmd.SetErr(out)
-	rootCmd.SetArgs([]string{"approve"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("expected error for missing gate argument")
+// TestApproveRequiresArgs ensures `approve` and `revoke` need ROLLOUT and VERSION.
+func TestApproveRequiresArgs(t *testing.T) {
+	for _, name := range []string{"approve", "revoke"} {
+		for _, args := range [][]string{{name}, {name, "my-app"}} {
+			out := &bytes.Buffer{}
+			rootCmd.SetOut(out)
+			rootCmd.SetErr(out)
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+			if err == nil {
+				t.Fatalf("%v: expected an argument error", args)
+			}
+			if !strings.Contains(err.Error(), "accepts 2 arg") {
+				t.Errorf("%v: unexpected error: %v", args, err)
+			}
+		}
 	}
-	if !strings.Contains(err.Error(), "accepts 1 arg") {
-		t.Errorf("unexpected error: %v", err)
+}
+
+// TestRemovedCommands pins that the commands without a controller behind them are gone.
+func TestRemovedCommands(t *testing.T) {
+	for _, name := range []string{"suspend", "resume", "reject"} {
+		if c, _, _ := rootCmd.Find([]string{name}); c != nil && c != rootCmd {
+			t.Errorf("%q is still registered", name)
+		}
 	}
 }
 
