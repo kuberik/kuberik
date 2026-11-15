@@ -77,15 +77,20 @@ Common causes:
 
 If you flip a gate's `spec.passing` and it is reset right after, a controller owns the gate:
 
-- gates of a `RolloutSchedule` or `ClusterRolloutSchedule` are reconciled back by the rollout-controller (labels `gate.kuberik.com/schedule-name`);
-- gates of a `RolloutDependency` likewise (label `gate.kuberik.com/dependency-name`);
-- `ghd-*` gates belong to the environment-controller; find their owner through the owner reference, not a label.
+- gates of a `RolloutSchedule` or `ClusterRolloutSchedule` are reconciled back by the rollout-controller (label `gate.kuberik.com/schedule-name`);
+- gates of a `RolloutDependency` likewise (label `gate.kuberik.com/dependency-name`).
 
-Gates owned by an `ApprovalPolicy` or `ClusterApprovalPolicy` are not reset: an admission policy refuses the edit outright. Check who owns a gate:
+Two other kinds of gate block without being reset:
+
+- `ghd-*` gates belong to the environment-controller. They block through `spec.allowedVersions`, which the environment-controller sets to the versions the earlier environment has deployed; `passing` does not open them. Find their owner through the owner reference, not a label.
+- Gates owned by an `ApprovalPolicy` or `ClusterApprovalPolicy`: when the rollout-controller's admission policies are installed, an edit to them is refused outright.
+
+Check who owns a gate:
 
 ```bash
 kubectl get rolloutgate -n <namespace> \
-  -o custom-columns=NAME:.metadata.name,PASSING:.spec.passing,OWNER:.metadata.ownerReferences[*].kind --show-labels
+  -o 'custom-columns=NAME:.metadata.name,PASSING:.spec.passing,OWNER:.metadata.ownerReferences[*].kind'
+kubectl get rolloutgate -n <namespace> --show-labels
 ```
 
 Change the owning object, not the gate. To approve a version, create a `RolloutApproval`, not `passing`.
