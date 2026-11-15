@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -95,4 +97,45 @@ func TestScopeFlags(t *testing.T) {
 	}
 	// reset so other tests are not affected
 	allNamespaces = false
+}
+
+func TestCheckFluxVersion(t *testing.T) {
+	for out, wantErr := range map[string]bool{
+		"flux version 2.7.1\n": false,
+		"flux version 2.6.0":   false,
+		"flux version 2.5.1":   true,
+		"flux version 1.9.0":   true,
+		"garbage":              true,
+	} {
+		if err := checkFluxVersion(out); (err != nil) != wantErr {
+			t.Errorf("checkFluxVersion(%q) = %v, wantErr %v", out, err, wantErr)
+		}
+	}
+}
+
+func TestInitScaffoldsReleaseSource(t *testing.T) {
+	for _, tc := range []struct{ kind, want string }{
+		{"rollout", "releaseSourceRef:"},
+		{"releasesource", "kind: ReleaseSource"},
+	} {
+		got, err := captureStdout(func() error {
+			rootCmd.SetArgs([]string{"init", tc.kind, "--name", "demo"})
+			return rootCmd.Execute()
+		})
+		if err != nil || !strings.Contains(got, tc.want) || strings.Contains(got, "releasesImagePolicy") {
+			t.Errorf("init %s: err=%v output=%q", tc.kind, err, got)
+		}
+	}
+}
+
+// captureStdout runs fn and returns what it wrote to os.Stdout.
+func captureStdout(fn func() error) (string, error) {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err := fn()
+	_ = w.Close()
+	os.Stdout = old
+	b, _ := io.ReadAll(r)
+	return string(b), err
 }
