@@ -121,7 +121,7 @@ jobs:
         uses: helm/kind-action@v1
         with:
           cluster_name: kuberik-helm-${{ matrix.profile }}
-      - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
+      - name: Install Flux (image-reflector only for the pinned rollout-controller v0.9.2, which still watches ImagePolicy)
         run: |
           curl -s https://fluxcd.io/install.sh | sudo bash
           flux install \
@@ -227,7 +227,7 @@ jobs:
         uses: helm/kind-action@v1
         with:
           cluster_name: kuberik-upgrade
-      - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
+      - name: Install Flux (image-reflector only for the pinned rollout-controller v0.9.2, which still watches ImagePolicy)
         run: |
           curl -s https://fluxcd.io/install.sh | sudo bash
           flux install \
