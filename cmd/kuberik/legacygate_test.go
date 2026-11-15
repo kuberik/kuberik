@@ -392,6 +392,7 @@ func TestRevokeForbiddenGatesWarnsAndFailsAfterDelete(t *testing.T) {
 func TestRevokeForbiddenGatesSkipsCheckWhileAnotherApprovalRemains(t *testing.T) {
 	f := newFakeCluster()
 	f.listGates = errors.New(forbiddenGates)
+	forbidGets(f, "manual")
 	f.rolloutStatus = gateStatus(statusGate("manual", []string{"v1.42.0"}))
 	f.approvals["checkout-v1-42-0"] = buildApproval("prod", "checkout", "u", "v1.42.0", "")
 	other := buildApproval("prod", "checkout", "u", "v1.42.0", "")

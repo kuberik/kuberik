@@ -281,7 +281,7 @@ func describeStaleGates(gates []staleGate) string {
 	parts := make([]string, 0, len(gates))
 	for _, g := range gates {
 		if g.Confirmed {
-			parts = append(parts, g.Name)
+			parts = append(parts, g.Name+" (legacy approval gate)")
 		} else {
 			parts = append(parts, g.Name+" (may be a legacy approval gate)")
 		}
@@ -294,11 +294,17 @@ func warnStaleLegacyGates(ns, rollout, version string, add bool, gates []staleGa
 	if len(gates) == 0 {
 		return
 	}
-	state := "still allow"
+	subject, verb, state := "these gates", "were", "still allow"
+	if len(gates) == 1 {
+		subject, verb, state = "this gate", "was", "still allows"
+	}
 	fix := "remove that version from"
 	if add {
 		state = "do not yet allow"
+		if len(gates) == 1 {
+			state = "does not yet allow"
+		}
 		fix = "add that version to"
 	}
-	_, _ = fmt.Fprintf(warnOut, "warning: you are not allowed to list RolloutGates, so these gates of %s/%s were not updated and %s %q: %s. Someone with RolloutGate update rights should %s the spec.allowedVersions of each one that is a legacy approval gate.\n", ns, rollout, state, version, describeStaleGates(gates), fix)
+	_, _ = fmt.Fprintf(warnOut, "warning: you are not allowed to list RolloutGates, so %s of %s/%s %s not updated and %s %q: %s. Someone with RolloutGate update rights should %s the spec.allowedVersions of each legacy approval gate.\n", subject, ns, rollout, verb, state, version, describeStaleGates(gates), fix)
 }
