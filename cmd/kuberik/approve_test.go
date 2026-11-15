@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// The cases of rollout-dashboard's TestApprovalName_ContractExamples; the name
-// rule is shared byte for byte with the dashboard and rollout-controller.
+// Cases that pin the naming rule; it is shared byte for byte with the dashboard
+// and rollout-controller.
 func TestApprovalName(t *testing.T) {
 	long := "v" + strings.Repeat("a", 300)
 	sum := sha256.Sum256([]byte(long))
