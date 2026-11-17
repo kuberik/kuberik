@@ -2,7 +2,7 @@ apiVersion: v2
 name: kuberik
 description: Kubernetes-native progressive delivery. Installs the Kuberik rollout-controller and optional integration controllers.
 type: application
-version: 0.7.0
+version: 0.8.0
 appVersion: "0.9.2"
 home: https://kuberik.com
 sources:

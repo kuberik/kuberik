@@ -1,0 +1,87 @@
+{{- /*
+ValidatingAdmissionPolicies for manual approvals. Rendered only when the
+cluster serves admissionregistration.k8s.io/v1 ValidatingAdmissionPolicy
+(Kubernetes 1.30+) and admissionPolicies.enabled is true. Without them
+approvals still work, but approval.kuberik.com/by is unverified and the
+dashboard does not show it.
+*/ -}}
+{{- if and (.Capabilities.APIVersions.Has "admissionregistration.k8s.io/v1/ValidatingAdmissionPolicy") .Values.admissionPolicies.enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kuberik-rolloutapproval-by
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [kuberik.com]
+      apiVersions: ["*"]
+      resources: [rolloutapprovals]
+      operations: [CREATE, UPDATE]
+  variables:
+  - name: by
+    expression: "has(object.metadata.annotations) && 'approval.kuberik.com/by' in object.metadata.annotations ? object.metadata.annotations['approval.kuberik.com/by'] : ''"
+  - name: oldBy
+    expression: "oldObject != null && has(oldObject.metadata.annotations) && 'approval.kuberik.com/by' in oldObject.metadata.annotations ? oldObject.metadata.annotations['approval.kuberik.com/by'] : ''"
+  validations:
+  - expression: "request.operation != 'CREATE' || variables.by == '' || variables.by == request.userInfo.username"
+    messageExpression: "'approval.kuberik.com/by must be your own username (' + request.userInfo.username + ')'"
+  - expression: "request.operation != 'UPDATE' || variables.by == variables.oldBy"
+    message: "approval.kuberik.com/by is immutable"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kuberik-rolloutapproval-by
+spec:
+  policyName: kuberik-rolloutapproval-by
+  validationActions: [Deny]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kuberik-approval-gate-guard
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [kuberik.com]
+      apiVersions: ["*"]
+      resources: [rolloutgates]
+      operations: [CREATE, UPDATE, DELETE]
+  matchConditions:
+  - name: policy-owned
+    expression: >-
+      [object, oldObject].exists(o, o != null && (
+        (has(o.metadata.labels) && 'gate.kuberik.com/approval-policy-name' in o.metadata.labels) ||
+        (has(o.metadata.ownerReferences) && o.metadata.ownerReferences.exists(r,
+          r.apiVersion.startsWith('kuberik.com/') && r.kind in ['ApprovalPolicy', 'ClusterApprovalPolicy']))))
+  - name: not-controller-or-gc
+    expression: >-
+      !(request.userInfo.username in [
+        'system:serviceaccount:{{ .Values.namespace }}:rollout-controller-controller-manager',
+        'system:serviceaccount:kube-system:generic-garbage-collector',
+        'system:serviceaccount:kube-system:namespace-controller',
+        'system:kube-controller-manager'])
+  variables:
+  - name: labels
+    expression: "has(object.metadata.labels) ? object.metadata.labels : {}"
+  - name: oldLabels
+    expression: "has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}"
+  - name: owners
+    expression: "has(object.metadata.ownerReferences) ? object.metadata.ownerReferences : []"
+  - name: oldOwners
+    expression: "has(oldObject.metadata.ownerReferences) ? oldObject.metadata.ownerReferences : []"
+  validations:
+  - expression: "request.operation == 'UPDATE' && object.spec == oldObject.spec && variables.labels == variables.oldLabels && variables.owners == variables.oldOwners"
+    messageExpression: "'only the rollout-controller may ' + request.operation + ' a gate owned by an approval policy; create a RolloutApproval to approve a build'"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kuberik-approval-gate-guard
+spec:
+  policyName: kuberik-approval-gate-guard
+  validationActions: [Deny]
+{{- end }}
