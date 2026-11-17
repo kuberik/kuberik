@@ -33,7 +33,7 @@ jobs:
           version: v3.16.3
 
       - name: Run chart-releaser (gh-pages helm repo)
-        uses: helm/chart-releaser-action@v1.7.0
+        uses: helm/chart-releaser-action@v1.8.0
         with:
           charts_dir: chart
           mark_as_latest: true
