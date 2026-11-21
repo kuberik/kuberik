@@ -1,0 +1,15 @@
+# Sample ReleaseSource: the release-controller lists tags of one OCI image
+# and orders them by semver.
+# kubectl apply -f releasesource.yaml
+---
+apiVersion: kuberik.com/v1alpha1
+kind: ReleaseSource
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  oci:
+    image: ghcr.io/myorg/my-app
+    policy:
+      semver:
+        range: '>=1.0.0'
