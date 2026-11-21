@@ -60,6 +60,84 @@ spec:
                 description: Message provides additional details about the health
                   status
                 type: string
+              observations:
+                description: |-
+                  Observations are the facts the check last evaluated, most important first.
+                  Consumers (the dashboard) draw the first one as the headline figure; Message
+                  stays the human sentence. Providers may leave this empty.
+                items:
+                  description: |-
+                    HealthCheckObservation is one typed fact a health check evaluated.
+                    Numeric fields are decimal strings (e.g. "8.2", "0.082") so no precision is lost
+                    and the CRD stays float-free.
+                  properties:
+                    direction:
+                      description: 'Direction, for Threshold: Above is bad when value
+                        > limit; Below is bad when value < limit.'
+                      enum:
+                      - Above
+                      - Below
+                      type: string
+                    healthy:
+                      description: |-
+                        Healthy says whether this observation alone is within bounds, so a consumer
+                        can mark the offending one when several are listed.
+                      type: boolean
+                    kind:
+                      description: |-
+                        Kind picks the drawing: Threshold (value vs limit), Ratio (value of total),
+                        Count (value), State (no number; label only).
+                      enum:
+                      - Threshold
+                      - Ratio
+                      - Count
+                      - State
+                      type: string
+                    limit:
+                      description: Limit is the boundary for a Threshold observation,
+                        as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    message:
+                      description: |-
+                        Message says what this observation is about when Name alone does not: the
+                        failing resource's status message, the alert's identifying labels, the
+                        monitor's alerting groups. One line of plain text. Consumers show it
+                        verbatim and never parse it.
+                      maxLength: 256
+                      type: string
+                    name:
+                      description: Name of the observed quantity, shown as the label
+                        ("error rate", "p99 latency").
+                      minLength: 1
+                      type: string
+                    observedTime:
+                      description: ObservedTime is when the provider last evaluated
+                        this observation.
+                      format: date-time
+                      type: string
+                    total:
+                      description: Total is the denominator for a Ratio observation,
+                        as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    unit:
+                      description: 'Unit of the numbers: Percent (a ratio 0..1), Milliseconds,
+                        Seconds, Count, or free text.'
+                      type: string
+                    value:
+                      description: Value is the observed number, as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    window:
+                      description: Window the observation covers, e.g. "5m".
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                maxItems: 16
+                type: array
               status:
                 description: Status indicates the health state of the check (e.g.,
                   'Healthy', 'Unhealthy', 'Pending')

@@ -500,8 +500,10 @@ spec:
                         type: string
                       type: array
                     bypassGates:
-                      description: BypassGates indicates whether this gate was bypassed
-                        for the current deployment.
+                      description: |-
+                        BypassGates indicates whether this gate was bypassed for the current deployment.
+                        With the rollout.kuberik.com/bypass-gates-only annotation, only the listed
+                        gates are marked.
                       type: boolean
                     message:
                       description: Message is a message describing the status of the
@@ -546,6 +548,18 @@ spec:
                       description: |-
                         BakeEndTime is the time when the bake period ended for this deployment
                         This is when the bake process completed (either successfully or with failure).
+                      format: date-time
+                      type: string
+                    bakeHeldDuration:
+                      description: |-
+                        BakeHeldDuration is the total time the bake clock was stopped, excluding
+                        the hold in progress (see BakeHoldStartTime). Held time does not count
+                        toward the bake time.
+                      type: string
+                    bakeHoldStartTime:
+                      description: |-
+                        BakeHoldStartTime is when the bake clock was stopped because a selected
+                        health check was not Healthy. It is nil while the bake clock is running.
                       format: date-time
                       type: string
                     bakeStartTime:
@@ -622,6 +636,14 @@ spec:
                                     observation, as a decimal string.
                                   pattern: ^-?[0-9]+(\.[0-9]+)?$
                                   type: string
+                                message:
+                                  description: |-
+                                    Message says what this observation is about when Name alone does not: the
+                                    failing resource's status message, the alert's identifying labels, the
+                                    monitor's alerting groups. One line of plain text. Consumers show it
+                                    verbatim and never parse it.
+                                  maxLength: 256
+                                  type: string
                                 name:
                                   description: Name of the observed quantity, shown
                                     as the label ("error rate", "p99 latency").
@@ -680,7 +702,7 @@ spec:
                         This field contains human-readable information about the deployment context.
                         For automatic deployments, it includes information about gate bypass and failed bake unblock.
                         For manual deployments (when wantedVersion is specified), it can contain a custom message
-                        provided via the "rollout.kuberik.com/deployment-message" annotation, or defaults to "Manual deployment".
+                        provided via the "rollout.kuberik.com/deploy-message" annotation, or defaults to "Manual deployment".
                       type: string
                     timestamp:
                       description: Timestamp is the time when the deployment occurred.
