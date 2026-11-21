@@ -40,9 +40,9 @@ kubectl apply --server-side -f kuberik/crds/
 
 `--server-side` is required: the `RolloutTest` CRD is larger than the 256 KiB annotation limit of client-side `kubectl apply`.
 
-## Moving Rollouts to ReleaseSources (chart 0.8.0)
+## Moving Rollouts to ReleaseSources (chart 0.10.0)
 
-Chart 0.8.0 installs the release-controller by default. A Rollout gets its releases from a `ReleaseSource` named in `spec.releaseSourceRef`; `spec.releasesImagePolicy` is ignored, and a Rollout without `releaseSourceRef` reports the condition `ReleaseSourceRequired` and receives no releases. This applies once the chart runs a rollout-controller release that has `releaseSourceRef`.
+Chart 0.10.0 installs the release-controller by default. A Rollout gets its releases from a `ReleaseSource` named in `spec.releaseSourceRef`; `spec.releasesImagePolicy` is ignored, and a Rollout without `releaseSourceRef` reports the condition `ReleaseSourceRequired` and receives no releases. This applies once the chart runs a rollout-controller release that has `releaseSourceRef`.
 
 Migrate before or together with that upgrade:
 
@@ -76,9 +76,19 @@ Migrate before or together with that upgrade:
 | 0.6.0 | v0.9.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 | 0.6.1 | v0.9.0 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
 | 0.7.0 | v0.9.2 | - | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
-| 0.8.0 | v0.9.2 | v0.1.0 | v0.1.0 | v0.4.0 | v0.1.5 | v0.9.1 |
+| 0.10.0 | RELEASE-PLACEHOLDER | RELEASE-PLACEHOLDER | RELEASE-PLACEHOLDER | RELEASE-PLACEHOLDER | RELEASE-PLACEHOLDER | RELEASE-PLACEHOLDER |
 
-0.6.0 shipped rollout-controller v0.9.0 without the `RolloutDependency` CRD and RBAC; use 0.6.1 or newer. 0.7.0 turns the CRDs into chart resources; coming from 0.6.1 or older needs the one-time hand-over above. 0.8.0 adds the release-controller (`releaseController.enabled`, on by default) and its `ReleaseSource` / `ReleaseSlice` CRDs; they are new, so the upgrade from 0.7.x needs no hand-over.
+0.6.0 shipped rollout-controller v0.9.0 without the `RolloutDependency` CRD and RBAC; use 0.6.1 or newer. 0.7.0 turns the CRDs into chart resources; coming from 0.6.1 or older needs the one-time hand-over above. 0.10.0 is the next release after 0.7.0 (0.8.x and 0.9.x were never published); the versions in its row are filled in when it is released.
+
+## Upgrading to chart 0.10.0
+
+**BREAKING: Flux Kustomization variables written by Kuberik.** For a Rollout that delivers through a Flux Kustomization, rollout-controller now writes the deployed version into `spec.postBuild.substitute` under its own per-Rollout field manager and no longer forces ownership of the field. If the Kustomization you apply from Git also sets that variable (for example `IMAGE_TAG: "1.0.0"` under `postBuild.substitute`), the next deploy is refused and the Rollout reports `KustomizationFieldConflict`. Remove the variable from the Kustomization in Git and give the manifests a default instead, `${IMAGE_TAG:=1.0.0}`. Kuberik fills the variable in on the first deploy and Flux keeps your default until then.
+
+**New RBAC.** The rollout-controller may `get`, `list`, `watch` and `patch` `helmreleases.helm.toolkit.fluxcd.io`, so Rollouts can deliver through a Flux HelmRelease. The chart grants it. If you install the controller from its install manifest instead of the chart, apply the manifest of the matching release. The chart also adds the `kuberik-rollout-approver` ClusterRole, the release catalogue read role for the release-controller, and the approval ValidatingAdmissionPolicies (Kubernetes 1.30+, `admissionPolicies.enabled`).
+
+**New CRDs.** `ApprovalPolicy`, `ClusterApprovalPolicy` and `RolloutApproval` (manual approvals), and `ReleaseSource` and `ReleaseSlice` (release-controller). Helm installs them during `helm upgrade`; they carry `helm.sh/resource-policy: keep`. New fields on `Rollout` and `HealthCheck` (automatic rollback, HelmRelease delivery, health observations) arrive with the same upgrade.
+
+**openkruise-controller.** The chart now defaults to an openkruise-controller release (see the matrix row) that clears stale conditions when a `RolloutTest` moves to `WaitingForStep`. Upgrade it together with the rest of the chart.
 
 Always check the release notes of the chart version you are upgrading to for any deviations from this baseline.
 
