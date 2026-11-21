@@ -42,10 +42,86 @@ spec:
               class:
                 description: Class specifies the type of health check (e.g., 'kustomization')
                 type: string
+              rollbackOn:
+                description: |-
+                  RollbackOn lists the kinds of failure that roll back a Rollout that has
+                  spec.autoRollback.enabled. Unset means the default for the check's class;
+                  an empty list means this check never rolls back. CheckError cannot be
+                  listed: a check that fails to run never rolls anything back.
+                items:
+                  description: FailureKind classifies why a health check failed.
+                  enum:
+                  - Alert
+                  - Incident
+                  - ApplyFailed
+                  - NotReady
+                  - TestFailed
+                  - CheckError
+                  - Unclassified
+                  type: string
+                maxItems: 6
+                type: array
+                x-kubernetes-validations:
+                - message: CheckError never rolls back and cannot be listed
+                  rule: '!self.exists(k, k == ''CheckError'')'
             type: object
           status:
             description: HealthCheckStatus defines the observed state of HealthCheck.
             properties:
+              failures:
+                description: |-
+                  Failures is the witness of what failed, by source and kind. Entries are
+                  added when a source fails and kept after it recovers; the reset at a new
+                  deploy or retry clears them together with lastErrorTime.
+                items:
+                  description: |-
+                    HealthCheckFailure is one thing that failed, with its kind. Like
+                    lastErrorTime it is a witness: it stays after the source recovers and is
+                    cleared only by the reset at the next deploy or retry.
+                  properties:
+                    firstSeenTime:
+                      description: FirstSeenTime is when this source and kind were
+                        first recorded as failing.
+                      format: date-time
+                      type: string
+                    kind:
+                      description: Kind classifies the failure.
+                      enum:
+                      - Alert
+                      - Incident
+                      - ApplyFailed
+                      - NotReady
+                      - TestFailed
+                      - CheckError
+                      - Unclassified
+                      type: string
+                    message:
+                      description: Message is one line of detail.
+                      maxLength: 256
+                      type: string
+                    reason:
+                      description: |-
+                        Reason is the machine reason (RolloutTestFailed, JobFailed,
+                        ProgressDeadlineExceeded, BuildFailed, ...).
+                      maxLength: 128
+                      type: string
+                    rollback:
+                      description: |-
+                        Rollback is the source's own switch, read from the
+                        rollout.kuberik.com/rollback annotation. Nil when the source has none.
+                      type: boolean
+                    source:
+                      description: Source names what failed, e.g. "RolloutTest ns/name"
+                        or "Kustomization ns/name".
+                      maxLength: 256
+                      type: string
+                  required:
+                  - firstSeenTime
+                  - kind
+                  - source
+                  type: object
+                maxItems: 16
+                type: array
               lastChangeTime:
                 description: LastChangeTime is the timestamp when the health status
                   last changed

@@ -67,6 +67,15 @@ spec:
           spec:
             description: RolloutSpec defines the desired state of Rollout.
             properties:
+              autoRollback:
+                description: |-
+                  AutoRollback turns on rolling back to the last good build when a build
+                  fails its bake because of a failure the health checks say should roll back.
+                properties:
+                  enabled:
+                    description: Enabled turns automatic rollback on. Off by default.
+                    type: boolean
+                type: object
               availableReleasesMinCount:
                 default: 30
                 description: |-
@@ -343,6 +352,12 @@ spec:
                       description: Created is the release creation time.
                       format: date-time
                       type: string
+                    failedBake:
+                      description: |-
+                        FailedBake is true when this Rollout's newest deploy of the release failed
+                        its bake. Automatic selection skips it until someone names the build
+                        (spec.wantedVersion, force-deploy or bypass-gates).
+                      type: boolean
                     firstSeen:
                       description: FirstSeen is when the catalogue first admitted
                         this release.
@@ -578,6 +593,18 @@ spec:
                         BakeStatusMessage provides details about the bake state for this deployment
                         This field contains human-readable information about why the bake status is what it is.
                       type: string
+                    deployKind:
+                      description: |-
+                        DeployKind is what caused this deploy. Entries written before it existed
+                        have none and are never rolled back to or from automatically.
+                      enum:
+                      - Automatic
+                      - GateBypass
+                      - Unblock
+                      - Pin
+                      - ForceDeploy
+                      - AutoRollback
+                      type: string
                     failedHealthChecks:
                       description: |-
                         FailedHealthChecks contains all health checks that failed during bake.
@@ -586,6 +613,53 @@ spec:
                         description: FailedHealthCheck represents a health check that
                           failed during bake.
                         properties:
+                          class:
+                            description: Class is the health check's spec.class.
+                            type: string
+                          failures:
+                            description: Failures lists what failed in this check,
+                              each with the decision it led to.
+                            items:
+                              description: FailureVerdict is one failure of a health
+                                check and whether it rolls back.
+                              properties:
+                                kind:
+                                  description: Kind classifies the failure.
+                                  enum:
+                                  - Alert
+                                  - Incident
+                                  - ApplyFailed
+                                  - NotReady
+                                  - TestFailed
+                                  - CheckError
+                                  - Unclassified
+                                  type: string
+                                message:
+                                  description: Message is one line of detail.
+                                  type: string
+                                reason:
+                                  description: Reason is the machine reason.
+                                  type: string
+                                rollsBack:
+                                  description: RollsBack is true when this failure
+                                    triggers an automatic rollback.
+                                  type: boolean
+                                source:
+                                  description: Source names what failed.
+                                  type: string
+                                why:
+                                  description: |-
+                                    Why is the rule that decided: CheckRollbackOn, NotInRollbackOn,
+                                    SourceOptedOut, SourceOptedIn or CheckErrorNever.
+                                  type: string
+                              required:
+                              - kind
+                              - rollsBack
+                              - source
+                              - why
+                              type: object
+                            maxItems: 16
+                            type: array
                           message:
                             description: Message is the error message from the health
                               check.
@@ -678,6 +752,24 @@ spec:
                               type: object
                             maxItems: 16
                             type: array
+                          rollbackOn:
+                            description: |-
+                              RollbackOn is the check's spec.rollbackOn as resolved when the failure was
+                              recorded (the class default when the check sets none).
+                            items:
+                              description: FailureKind classifies why a health check
+                                failed.
+                              enum:
+                              - Alert
+                              - Incident
+                              - ApplyFailed
+                              - NotReady
+                              - TestFailed
+                              - CheckError
+                              - Unclassified
+                              type: string
+                            maxItems: 8
+                            type: array
                         required:
                         - name
                         - namespace
@@ -704,6 +796,11 @@ spec:
                         For manual deployments (when wantedVersion is specified), it can contain a custom message
                         provided via the "rollout.kuberik.com/deploy-message" annotation, or defaults to "Manual deployment".
                       type: string
+                    rollbackOf:
+                      description: RollbackOf is the ID of the history entry this
+                        deploy rolled back.
+                      format: int64
+                      type: integer
                     timestamp:
                       description: Timestamp is the time when the deployment occurred.
                       format: date-time
