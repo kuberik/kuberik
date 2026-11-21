@@ -64,6 +64,8 @@ jobs:
           version: v3.16.3
       - name: Lint chart
         run: helm lint chart/kuberik
+      - name: Render tests
+        run: chart/kuberik/tests/render-test.sh
       - name: Render chart (defaults)
         run: helm template kuberik chart/kuberik > /tmp/kuberik-default.yaml
       - name: Render chart (all integrations + dashboard)

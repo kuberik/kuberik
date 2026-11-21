@@ -17,6 +17,13 @@
         "keep": { "type": "boolean" }
       }
     },
+    "admissionPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "rolloutController": {
       "type": "object",
       "additionalProperties": true,
