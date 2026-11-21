@@ -228,7 +228,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: manager
-          image: {{ printf "%s:%s" .Values.releaseController.image.repository (.Values.releaseController.image.tag | default "v0.1.0") | quote }}
+          image: {{ printf "%s:%s" .Values.releaseController.image.repository (.Values.releaseController.image.tag | default (include "kuberik.version.releaseController" .)) | quote }}
           imagePullPolicy: {{ .Values.releaseController.image.pullPolicy }}
           command: ["/manager"]
           args:

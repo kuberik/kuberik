@@ -15,8 +15,8 @@ resources:
   - https://github.com/kuberik/rollout-controller/releases/download/v0.9.2/install.yaml
 
   # Release source (required for Rollouts to get releases; reconciles ReleaseSource objects that Rollouts
-  # reference via spec.releaseSourceRef). release-controller has no tagged
-  # release or install.yaml yet; uncomment and pin the version once it does:
+  # reference via spec.releaseSourceRef). The release process uncomments and pins
+  # this with hack/set-chart-versions.sh once the release exists:
   # - https://github.com/kuberik/release-controller/releases/download/vX.Y.Z/install.yaml
 
   # Integrations (optional - comment out what you don't need)

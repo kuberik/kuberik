@@ -20,14 +20,13 @@ or, with the kuberik CLI:
 
 Next steps:
 
-  1. Install Flux. The pinned rollout-controller (v{{ .Chart.AppVersion }}) still
-     watches Flux ImagePolicy and exits without the image-reflector CRDs:
+  1. Install Flux. The rollout-controller (v{{ .Chart.AppVersion }}) watches Flux
+     Kustomizations and, when present, HelmReleases:
 
-         flux install --components=source-controller,kustomize-controller,image-reflector-controller
-{{- /* BUMP-FLIP(flux-notes): the rollout-controller release after v0.9.2 drops
-the ImagePolicy requirement. When hack/bump-rollout-controller.sh pins that
-release, change step 1 to source-controller + kustomize-controller only
-(image-reflector-controller becomes optional) and delete this marker. */}}
+         flux install --components=source-controller,kustomize-controller,helm-controller
+
+     helm-controller is only needed for Rollouts that deliver through a
+     HelmRelease; image-reflector-controller is no longer required.
 
   2. Define a ReleaseSource (oci.image + policy) for each app you want
      Kuberik to track, and point the Rollout at it with

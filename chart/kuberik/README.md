@@ -7,7 +7,7 @@ A Helm chart that installs the Kuberik rollout-controller and optionally the int
 
 The chart installs:
 
-- CRD_COUNT_PLACEHOLDER CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency` and the manual-approval kinds `ApprovalPolicy`, `ClusterApprovalPolicy`, `RolloutApproval`) + release-controller (`ReleaseSource`, `ReleaseSlice`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
+- 13 CRDs, rendered as chart resources (`templates/crds.yaml` reads `files/crds/`) so `helm upgrade` installs new ones and updates existing ones: Kuberik core (incl. `RolloutDependency` and the manual-approval kinds `ApprovalPolicy`, `ClusterApprovalPolicy`, `RolloutApproval`) + release-controller (`ReleaseSource`, `ReleaseSlice`) + openkruise + environment. They carry `helm.sh/resource-policy: keep`.
 - rollout-controller: ServiceAccount, leader-election Role/RoleBinding, 11 ClusterRoles (incl. `kuberik-rollout-approver`) and 3 ClusterRoleBindings, metrics Service, Deployment.
 - On Kubernetes 1.30+, two ValidatingAdmissionPolicies with bindings (see [Manual approvals](#manual-approvals)).
 - release-controller (`releaseController.enabled`, on by default; Rollouts need it for releases): ServiceAccount, leader-election Role/RoleBinding, manager ClusterRole, a reader ClusterRole (aggregated into `view`) and a source-editor ClusterRole (aggregated into `edit`), the reader bound to the rollout-controller, rollout-dashboard and environment-controller service accounts, Deployment.
@@ -225,12 +225,20 @@ helm install kuberik ./chart/kuberik \
 
 The default ServiceAccount in the namespace usually cannot list deployments. The chart's test pod uses `rollout-controller-controller-manager` by default, which has the necessary permissions. If you override `tests.serviceAccountName`, make sure it can `get`/`list`/`watch` Deployments.
 
+### Component versions (maintainers)
+
+Each controller image defaults to a version pinned in `templates/_versions.tpl`, and `Chart.yaml` `appVersion` is the rollout-controller version. Between releases these are the literal `RELEASE-PLACEHOLDER`, which is not a pullable tag; the release process fills them with `hack/set-chart-versions.sh` and the chart-release workflow refuses to publish while any remain. To test an unreleased chart, pass explicit `image.tag` values.
+
+### RBAC for Flux HelmReleases
+
+The rollout-controller may `get`, `list`, `watch` and `patch` `helmreleases.helm.toolkit.fluxcd.io` (it writes Rollout values into annotated HelmReleases). The dashboard reads them through its cluster-wide view role. Without helm-controller installed the controller runs with HelmRelease support off.
+
 ### Image pull failures for `rollout-controller`
 
 The chart defaults `rolloutController.image.tag` to `v` + `Chart.AppVersion`. If you are testing a fork with a non-`v`-prefixed tag, set the tag explicitly:
 
 ```bash
---set rolloutController.image.tag=0.7.0
+--set rolloutController.image.tag=0.10.0
 ```
 
 ### ServiceMonitor not picked up by Prometheus

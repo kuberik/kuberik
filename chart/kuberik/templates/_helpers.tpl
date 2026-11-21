@@ -34,7 +34,12 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | quote }}
 {{- define "kuberik.rolloutControllerImage" -}}
 {{- $tag := .Values.rolloutController.image.tag -}}
 {{- if not $tag -}}
+{{- /* appVersion is the rollout-controller version; see _versions.tpl for the placeholder rules. */ -}}
+{{- if eq .Chart.AppVersion "RELEASE-PLACEHOLDER" -}}
+{{- $tag = .Chart.AppVersion -}}
+{{- else -}}
 {{- $tag = printf "v%s" .Chart.AppVersion -}}
+{{- end -}}
 {{- end -}}
 {{ printf "%s:%s" .Values.rolloutController.image.repository $tag }}
 {{- end -}}

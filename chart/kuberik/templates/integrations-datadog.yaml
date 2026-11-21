@@ -206,7 +206,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: {{ printf "%s:%s" .Values.integrations.datadog.image.repository (.Values.integrations.datadog.image.tag | default "v0.1.0") | quote }}
+        image: {{ printf "%s:%s" .Values.integrations.datadog.image.repository (.Values.integrations.datadog.image.tag | default (include "kuberik.version.datadogController" .)) | quote }}
         {{- with (dig "existingSecret" "" .Values.integrations.datadog) }}
         # Datadog API credentials for the datadog and datadog-incidents
         # classes. Keys: api-key, app-key, site.

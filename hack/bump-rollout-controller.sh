@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Pin the chart to a rollout-controller release: replaces the rollout-controller
 # CRDs in chart/kuberik/files/crds with the ones from that release's install.yaml
-# and sets appVersion. Run it only once the release that carries the Rollout
-# releaseSourceRef field (rollout-controller #58) is published.
+# and sets appVersion. Normally run through hack/set-chart-versions.sh at release time.
 #   hack/bump-rollout-controller.sh v0.12.0
 set -euo pipefail
 ver="${1:?usage: $0 vX.Y.Z}"
@@ -67,4 +66,4 @@ if command -v yq >/dev/null && command -v helm >/dev/null; then
 else
   echo "yq and helm not found: compare the release's manager ClusterRole and Deployment with the chart templates by hand."
 fi
-echo "Done. Still manual: bump Chart.yaml version, add the docs/upgrade.md matrix row, and apply BUMP-FLIP(flux-notes) in chart/kuberik/templates/NOTES.txt if the release no longer needs ImagePolicy. Review git diff."
+echo "Done. Still manual: the docs/upgrade.md matrix row. Normally run via hack/set-chart-versions.sh, which pins every component. Review git diff."
