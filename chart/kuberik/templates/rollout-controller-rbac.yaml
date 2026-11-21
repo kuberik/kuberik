@@ -135,6 +135,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
   - image.toolkit.fluxcd.io
   resources:
   - imagepolicies
