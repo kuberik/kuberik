@@ -43,13 +43,13 @@ The core of Kuberik. It owns the following CRDs:
 
 The controller reads releases from a `ReleaseSource` and patches `OCIRepository` or `Kustomization` resources when a release is promoted.
 
+Source: [kuberik/rollout-controller](https://github.com/kuberik/rollout-controller)
+
 ## release-controller
 
 Owns `ReleaseSource`. It lists an image's tags in the registry itself, orders them by the source's policy, and keeps the catalogue the rollout-controller reads. Flux's image-reflector-controller is not required; a source can optionally read an existing `ImagePolicy` through `spec.oci.imagePolicyRef`.
 
 Source: [kuberik/release-controller](https://github.com/kuberik/release-controller)
-
-Source: [kuberik/rollout-controller](https://github.com/kuberik/rollout-controller)
 
 ## Integration Controllers
 

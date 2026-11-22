@@ -6,7 +6,7 @@ A minimal end-to-end Kuberik setup: one image tracked by a ReleaseSource, one Ro
 
 - `releasesource.yaml` - the `ReleaseSource` that lists the image's tags and orders them with a `policy` (reconciled by the release-controller)
 - `rollout.yaml` - the Kuberik `Rollout` that drives promotion
-- `oci-target.yaml` - the Flux `OCIRepository` that gets patched when a release is approved
+- `oci-target.yaml` - the Flux `OCIRepository` that gets patched when a release is promoted
 
 ## Prerequisites
 
@@ -45,5 +45,5 @@ spec:
 
 ## Next steps
 
-- Add a manual approval gate - see [examples/with-gate](../with-gate)
+- Add manual approval - see [examples/with-gate](../with-gate)
 - Add a Datadog health check - see [examples/with-datadog](../with-datadog)
