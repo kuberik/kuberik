@@ -64,6 +64,8 @@ Migrate before or together with that upgrade:
 3. Point each Rollout at it with `spec.releaseSourceRef: {name: my-app}`.
 4. Keep the Flux `ImagePolicy` and `ImageRepository` objects until releases flow through the `ReleaseSource`; only then remove them, unless a source still references them through `imagePolicyRef`.
 
+The rollout-controller no longer reads Flux `ImagePolicy` and `ImageRepository` objects, and its chart role no longer grants access to them; Rollouts read releases from a `ReleaseSource`.
+
 ## Chart -> controller version matrix
 
 | Chart version | rollout-controller | release | datadog | openkruise | environment | dashboard |
