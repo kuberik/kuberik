@@ -122,6 +122,16 @@ spec:
                   type: object
                 maxItems: 16
                 type: array
+              failuresDeferred:
+                description: |-
+                  FailuresDeferred says the check is Unhealthy for a reason other sources
+                  report (for example a Kruise Rollout left to its RolloutTests), so an empty
+                  failures list does not yet mean the failure is unclassified. A Rollout with
+                  automatic rollback enabled waits up to 2 minutes, from when it starts
+                  waiting, for those sources to report before it treats the failure as
+                  unclassified. Like failures it is a witness: set by the check, cleared only
+                  by the reset at a new deploy or retry.
+                type: boolean
               lastChangeTime:
                 description: LastChangeTime is the timestamp when the health status
                   last changed
