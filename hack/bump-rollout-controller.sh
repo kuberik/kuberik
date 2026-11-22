@@ -34,11 +34,11 @@ p = sys.argv[1]
 s = open(p).read()
 s = re.sub(r"[ ]*# releaseController\.enabled=false until[^\n]*\n[ ]*# publishes[^\n]*\n", "", s)
 s = re.sub(r"[ ]*--set releaseController\.enabled=false \\\n", "", s)
-s = re.sub(r"[ ]*# samples/rollout\.yaml uses spec\.releaseSourceRef[^\n]*\n[ ]*# pinned[^\n]*\n[ ]*# it again[^\n]*\n",
-           "", s)
+s = re.sub(r"[ ]*# samples/rollout\.yaml is not applied[^\n]*\n[ ]*# release-controller disabled[^\n]*\n"
+           r"[ ]*# for the Rollout[^\n]*\n[ ]*# release-controller\.\n", "", s)
 s = s.replace("kubectl apply -f chart/kuberik/samples/releasesource.yaml\n",
               "kubectl apply -f chart/kuberik/samples/releasesource.yaml\n          kubectl apply -f chart/kuberik/samples/rollout.yaml\n")
-s = re.sub(r"[ ]*# basic-rollout/rollout\.yaml needs[^\n]*\n[ ]*# pinned[^\n]*\n", "", s)
+s = re.sub(r"[ ]*# basic-rollout/rollout\.yaml is not applied[^\n]*\n[ ]*# \(no release-controller[^\n]*\n", "", s)
 s = s.replace("kubectl apply -f examples/basic-rollout/releasesource.yaml\n",
               "kubectl apply -f examples/basic-rollout/releasesource.yaml\n          kubectl apply -f examples/basic-rollout/rollout.yaml\n")
 s = s.replace("get releasesource,rolloutgate", "get releasesource,rollout,rolloutgate")
