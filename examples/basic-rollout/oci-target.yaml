@@ -12,5 +12,5 @@ metadata:
 spec:
   url: oci://ghcr.io/myorg/my-app
   interval: 1m
-  ref:
-    tag: "1.0.0"
+  # No spec.ref.tag here: the Rollout writes it at its first deploy, and
+  # a tag set from Git makes that deploy fail with OCIRepositoryFieldConflict.

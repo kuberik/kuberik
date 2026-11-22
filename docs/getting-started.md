@@ -93,9 +93,9 @@ metadata:
     rollout.kuberik.com/rollout: "my-app"
 spec:
   url: oci://ghcr.io/myorg/my-app
-  ref:
-    tag: "1.0.0"
 ```
+
+Leave `spec.ref` out. The Rollout writes `spec.ref.tag` at its first deploy, and if Git sets it the deploy is refused with `OCIRepositoryFieldConflict`. Until that first deploy Flux fetches the `latest` tag, so the OCIRepository may report not ready if the artifact has none; that is expected.
 
 For a `Kustomization` with substitution:
 
