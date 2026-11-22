@@ -144,15 +144,6 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - image.toolkit.fluxcd.io
-  resources:
-  - imagepolicies
-  - imagerepositories
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - kuberik.com
   resources:
   - clusterrolloutschedules
