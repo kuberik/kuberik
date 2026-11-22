@@ -161,9 +161,10 @@ jobs:
         # declare metadata.namespace: default, so apply in-place.
         run: |
           set -euo pipefail
-          # samples/rollout.yaml uses spec.releaseSourceRef, which the
-          # pinned rollout-controller CRD (v0.9.2) does not have yet. Apply
-          # it again once the chart pins a release that does.
+          # samples/rollout.yaml is not applied: this job runs with the
+          # release-controller disabled, so no ReleaseSource becomes Ready
+          # for the Rollout to read. Apply it again once the job can run the
+          # release-controller.
           kubectl apply -f chart/kuberik/samples/releasesource.yaml
           kubectl apply -f chart/kuberik/samples/gate.yaml
           kubectl apply -f chart/kuberik/samples/schedule.yaml
@@ -182,8 +183,8 @@ jobs:
           for ns in production staging; do
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
-          # basic-rollout/rollout.yaml needs releaseSourceRef support in the
-          # pinned rollout-controller CRD; validate its ReleaseSource only.
+          # basic-rollout/rollout.yaml is not applied for the same reason
+          # (no release-controller in this job); validate its ReleaseSource only.
           kubectl apply -f examples/basic-rollout/releasesource.yaml
           kubectl apply -f examples/with-gate/gate.yaml
           kubectl apply -f examples/with-schedule/schedule.yaml
