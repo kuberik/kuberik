@@ -12,7 +12,10 @@ var (
 	bootstrapVersion  string
 )
 
-const fluxImageReflectorURL = "https://github.com/fluxcd/flux2/releases/latest/download/install.yaml"
+// fluxVersion is the Flux release bootstrap installs.
+const fluxVersion = "v2.10.1"
+
+const fluxImageReflectorURL = "https://github.com/fluxcd/flux2/releases/download/" + fluxVersion + "/install.yaml"
 
 var bootstrapCmd = &cobra.Command{
 	Use:   "bootstrap",
