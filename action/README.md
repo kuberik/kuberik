@@ -26,22 +26,12 @@ Install the [Kuberik CLI](https://github.com/kuberik/kuberik) on Linux, macOS, o
 
 ### Approve a version from CI
 
-Approvals are per-version `RolloutApproval` objects. The identity running this step needs the `kuberik-rollout-approver` role.
+Approvals are per-version `RolloutApproval` objects. `kuberik approve` creates the same one the dashboard's Approve button creates (deterministic name, owned by the Rollout), so `kuberik revoke` can withdraw it. The CLI calls `kubectl`, and the identity running this step needs the `kuberik-rollout-approver` role.
 
 ```yaml
 - uses: azure/setup-kubectl@v4
-- run: |
-    kubectl apply -f - <<EOF
-    apiVersion: kuberik.com/v1alpha1
-    kind: RolloutApproval
-    metadata:
-      name: my-app-${VERSION//./-}
-      namespace: production
-    spec:
-      rolloutRef:
-        name: my-app
-      version: "${VERSION}"
-    EOF
+- uses: kuberik/kuberik/action@main
+- run: kuberik approve my-app "$VERSION" -n production
   env:
     VERSION: "1.2.3"
 ```
