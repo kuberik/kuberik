@@ -11,14 +11,15 @@ permissions:
 env:
   # Component image versions in the chart are RELEASE-PLACEHOLDER until release
   # (see chart/kuberik/templates/_versions.tpl), which is not a pullable tag.
-  # The kind jobs install with these published tags instead. The release-controller
-  # has no published image yet, so those jobs keep it disabled.
+  # The kind jobs install with these published tags instead, release-controller
+  # included (v0.1.0, its first release).
   CHART_TEST_IMAGE_FLAGS: >-
     --set rolloutController.image.tag=sha-b117e9f
     --set dashboard.image.tag=v0.9.2
     --set integrations.datadog.image.tag=v0.1.0
     --set integrations.openkruise.image.tag=v0.4.1
     --set integrations.environment.image.tag=v0.1.5
+    --set releaseController.image.tag=v0.1.0
 
 jobs:
   build:
@@ -128,8 +129,6 @@ jobs:
             --components=source-controller,kustomize-controller,image-reflector-controller \
             --network-policy=false
       - name: Install chart (${{ matrix.profile }})
-        # releaseController.enabled=false until ghcr.io/kuberik/release-controller
-        # publishes its first tag; drop the flag then (hack/bump-rollout-controller.sh does).
         # Use --create-namespace and disable the chart's namespace template
         # so the two do not collide. The "integrations" profile enables
         # datadog, openkruise, environment, and dashboard so all
@@ -145,7 +144,6 @@ jobs:
           helm install kuberik chart/kuberik \
             --namespace kuberik-system --create-namespace \
             --set createNamespace=false \
-            --set releaseController.enabled=false \
             $CHART_TEST_IMAGE_FLAGS \
             $extra_flags \
             --wait --timeout 5m
@@ -153,6 +151,10 @@ jobs:
         run: |
           kubectl wait --for=condition=Available --timeout=120s \
             -n kuberik-system deployment/rollout-controller
+      - name: Verify release-controller is Available
+        run: |
+          kubectl wait --for=condition=Available --timeout=120s \
+            -n kuberik-system deployment/release-controller
       - name: Run helm test
         run: helm test kuberik --namespace kuberik-system --timeout 3m
       - name: Apply chart sample manifests
@@ -253,7 +255,6 @@ jobs:
           helm upgrade kuberik chart/kuberik \
             --namespace kuberik-system \
             --set createNamespace=false \
-            --set releaseController.enabled=false \
             $CHART_TEST_IMAGE_FLAGS \
             --wait --timeout 3m
       - name: Verify the upgrade brought the CRDs along
