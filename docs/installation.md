@@ -43,7 +43,7 @@ kubectl apply -f https://github.com/kuberik/prometheus-controller/releases/lates
 ## Prerequisites
 
 - Kubernetes 1.25 or newer
-- [Flux v2](https://fluxcd.io/docs/installation/) with the `image-reflector-controller` component (required by rollout-controller for ImagePolicy tracking)
+- [Flux](https://fluxcd.io/docs/installation/) 2.7 or later with the `image-reflector-controller` component (required by rollout-controller for ImagePolicy tracking)
 
 ## Installing the CLI
 
