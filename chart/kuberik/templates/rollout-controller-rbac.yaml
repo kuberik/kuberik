@@ -233,6 +233,16 @@ rules:
 - apiGroups:
   - source.toolkit.fluxcd.io
   resources:
+  - buckets
+  - externalartifacts
+  - gitrepositories
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
   - ocirepositories
   verbs:
   - get
