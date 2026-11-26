@@ -5,7 +5,7 @@ This guide walks you through installing Kuberik and deploying your first Rollout
 ## Prerequisites
 
 - Kubernetes cluster (1.25+)
-- [Flux v2](https://fluxcd.io/docs/installation/) installed with the image-reflector-controller component
+- [Flux](https://fluxcd.io/docs/installation/) 2.7 or later, installed with the image-reflector-controller component
 - `kubectl` configured to access your cluster
 
 ## Install
@@ -35,7 +35,7 @@ kubectl get pods -n kuberik-system
 Kuberik uses Flux's `ImageRepository` and `ImagePolicy` to discover new releases. If you already have these configured, skip to step 2.
 
 ```yaml
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: my-app
@@ -44,7 +44,7 @@ spec:
   image: ghcr.io/myorg/my-app
   interval: 1m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: my-app

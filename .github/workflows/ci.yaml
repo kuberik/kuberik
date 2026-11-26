@@ -9,6 +9,8 @@ permissions:
   contents: read
 
 env:
+  # Flux release installed on the kind clusters; bump together with the Flux docs.
+  FLUX_VERSION: 2.10.1
   # Component image versions in the chart are RELEASE-PLACEHOLDER until release
   # (see chart/kuberik/templates/_versions.tpl), which is not a pullable tag.
   # The kind jobs install with these published tags instead, release-controller
@@ -124,7 +126,7 @@ jobs:
           cluster_name: kuberik-helm-${{ matrix.profile }}
       - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
         run: |
-          curl -s https://fluxcd.io/install.sh | sudo bash
+          curl -s https://fluxcd.io/install.sh | sudo FLUX_VERSION="$FLUX_VERSION" bash
           flux install \
             --components=source-controller,kustomize-controller,image-reflector-controller \
             --network-policy=false
@@ -228,7 +230,7 @@ jobs:
           cluster_name: kuberik-upgrade
       - name: Install Flux (rollout-controller watches ImagePolicy and Kustomization)
         run: |
-          curl -s https://fluxcd.io/install.sh | sudo bash
+          curl -s https://fluxcd.io/install.sh | sudo FLUX_VERSION="$FLUX_VERSION" bash
           flux install \
             --components=source-controller,kustomize-controller,image-reflector-controller \
             --network-policy=false
