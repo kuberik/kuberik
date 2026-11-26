@@ -2,15 +2,17 @@
 
 A `RolloutGate` is a boolean veto on a Rollout. While `spec.passing` is `false`, the referenced Rollout will not promote a new release. When all gates referencing a Rollout pass, the controller is free to promote.
 
-Gates compose: a Rollout can be blocked by many gates, and a single gate set by hand can be combined with gates set automatically by integration controllers.
+Gates compose: a Rollout can be blocked by many gates, and a gate written by hand can be combined with gates created by controllers.
 
 ## Minimal example
+
+A hand-written gate is a veto. This one stops all promotions of `my-app` while `passing` is `false`:
 
 ```yaml
 apiVersion: kuberik.com/v1alpha1
 kind: RolloutGate
 metadata:
-  name: my-app-approval
+  name: my-app-killswitch
   namespace: production
 spec:
   rolloutRef:
@@ -18,18 +20,14 @@ spec:
   passing: false
 ```
 
-Flip it to passing with the CLI:
+Flip it back with `kubectl`:
 
 ```bash
-kuberik approve my-app-approval -n production
-```
-
-Or directly with `kubectl`:
-
-```bash
-kubectl patch rolloutgate my-app-approval -n production \
+kubectl patch rolloutgate my-app-killswitch -n production \
   --type merge -p '{"spec":{"passing":true}}'
 ```
+
+Flipping `passing` is not an approval. It records nobody and no version. Approvals are `RolloutApproval` objects, one per version, and an `ApprovalPolicy` owns the gate that enforces them; see [Approvals](#approvals).
 
 ## Gate sources
 
@@ -37,9 +35,10 @@ Different controllers create gates for different reasons. The Rollout does not c
 
 | Source | What it gates on |
 | --- | --- |
-| Manual | A human (or ChatOps bot) flips `spec.passing` |
+| ApprovalPolicy | A person approves each version with a `RolloutApproval` |
+| Hand-written | A human or bot flips `spec.passing`; use it as a kill switch |
 | RolloutSchedule | Time-based: business hours, holiday freezes, maintenance windows |
-| environment-controller | Promotion order: production gates on staging being deployed (`After` relationship) |
+| environment-controller | Promotion order: a tier gates on the nearest earlier tier (dev, test, staging, prod) having deployed and baked the version |
 | openkruise-controller | Strategy progress: canary at 50% before allowing full rollout |
 | Your custom controller | Any signal you can express as `passing: true/false` |
 
@@ -66,9 +65,13 @@ spec:
         end: "17:00"
 ```
 
-`action: Allow` means the gate is open during the window and closed outside it. `action: Deny` means the gate is closed during the window (useful for change-freeze windows).
+`action: Allow` means the gate is open during the window and closed outside it. `action: Deny` means the gate is closed during the window (useful for change-freeze windows). `action` defaults to `Deny`, so a schedule without it blocks promotions while a rule matches.
 
 `ClusterRolloutSchedule` is the cluster-scoped variant: it adds a `namespaceSelector` so the same rules cover Rollouts in multiple namespaces.
+
+## Approvals
+
+An approval is a `RolloutApproval` for one Rollout and one version. Its `spec` is immutable and names the Rollout and the release tag. See [examples/with-gate](https://github.com/kuberik/kuberik/tree/main/examples/with-gate) for the policy and an approval. Creating one needs the `kuberik-rollout-approver` ClusterRole. A Rollout with no deployment history deploys its first release without approval.
 
 ## Inspecting gate state
 
@@ -86,21 +89,20 @@ The `Promoting` condition will list which gate is currently blocking.
 
 ## Patterns
 
-### Manual approval per environment
+### Manual approval
 
-One gate per environment, owned by the team that approves into that environment.
+Select the Rollouts that need approval with an `ApprovalPolicy`. Each version then needs its own `RolloutApproval`, created in the dashboard or by hand. A policy can select Rollouts by label, so one policy covers every production Rollout in a namespace; `ClusterApprovalPolicy` covers namespaces by selector.
 
 ```yaml
-# production approval
 apiVersion: kuberik.com/v1alpha1
-kind: RolloutGate
+kind: ApprovalPolicy
 metadata:
   name: production-approval
   namespace: production
 spec:
-  rolloutRef:
-    name: my-app
-  passing: false
+  rolloutSelector:
+    matchLabels:
+      kuberik.com/approval: required
 ```
 
 ### Pause everything
@@ -121,4 +123,4 @@ spec:
 
 ### Promotion order across environments
 
-Use environment-controller relationships rather than hand-rolling gates. It will create the right gates for you based on the declared `After` graph between Environments.
+Use environment-controller rather than hand-rolling gates. Give each tier's Environment the same `spec.name` and its own `spec.environment` (`staging`, `production`); the controller creates the gates from that fixed tier order. The `relationship` field is ignored.

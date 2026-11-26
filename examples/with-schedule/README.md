@@ -21,4 +21,8 @@ kubectl apply -f freeze.yaml
 
 ## Combining with manual approval
 
-A Rollout can be gated by **both** a schedule and a manual approval. The Rollout proceeds only when all gates pass, so a release that needs to go out off-hours requires both flipping the manual gate and either waiting for the schedule window or temporarily removing the schedule.
+A Rollout can be gated by **both** a schedule and a manual approval (see [examples/with-gate](../with-gate)). The Rollout proceeds only when all gates pass, so a release that needs to go out off-hours needs its approval and either the schedule window or a schedule that no longer matches the Rollout.
+
+## Default action
+
+`spec.action` defaults to `Deny`: with no `action`, the gate is closed while a rule matches. `schedule.yaml` sets `action: Allow` explicitly to get the opposite, open only inside the window.

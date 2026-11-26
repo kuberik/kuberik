@@ -46,19 +46,35 @@ For each blocked gate, check who owns it (label `owner=` or annotation) and ping
 
 ### Promote a release
 
-Most teams let Kuberik auto-promote when gates pass. For manual promotion:
+Most teams let Kuberik auto-promote when gates pass. Where an `ApprovalPolicy` applies, approve the version in the dashboard, or create the approval yourself:
 
 ```bash
-kuberik approve <gate-name> -n <namespace>
+kubectl apply -f - <<EOF
+apiVersion: kuberik.com/v1alpha1
+kind: RolloutApproval
+metadata:
+  name: <rollout>-<version-with-dashes>
+  namespace: <namespace>
+spec:
+  rolloutRef:
+    name: <rollout>
+  version: "<version>"
+EOF
 ```
 
-### Pause a Rollout (without disabling gates)
+### Stop a Rollout from deploying (without disabling gates)
+
+Pin it to the version it runs now:
 
 ```bash
-kuberik suspend <rollout> -n <namespace>
-# ... investigate
-kuberik resume <rollout> -n <namespace>
+kubectl patch rollout <rollout> -n <namespace> \
+  --type merge -p '{"spec":{"wantedVersion":"<current version>"}}'
+# ... investigate, then remove the pin
+kubectl patch rollout <rollout> -n <namespace> \
+  --type merge -p '{"spec":{"wantedVersion":null}}'
 ```
+
+To stop a group of Rollouts for a period, use a `RolloutSchedule` with `action: Deny`.
 
 ### Emergency: bypass gates
 

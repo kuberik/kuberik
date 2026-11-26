@@ -1,6 +1,10 @@
-# A Flux OCIRepository that Kuberik will patch with the new tag when a
+# A Flux OCIRepository that Kuberik patches with the new tag when a
 # release is promoted. The rollout.kuberik.com/rollout annotation tells
 # the controller which Rollout this resource belongs to.
+#
+# A Kustomization works the same way: annotate it with
+# rollout.kuberik.com/substitute.<VAR>.from: <rollout name> and the
+# controller sets spec.postBuild.substitute.<VAR> to the release tag.
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository

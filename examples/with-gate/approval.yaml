@@ -1,0 +1,18 @@
+# One approval for one version of one Rollout. spec is immutable.
+# The dashboard creates these when someone presses Approve; this is the
+# same object written by hand. `version` is the release tag and may name
+# a version that does not exist yet.
+#
+# The approval.kuberik.com/by annotation is optional. If you set it, it
+# must equal your own Kubernetes username: when the rollout-controller's
+# admission policies are installed, any other value is refused.
+---
+apiVersion: kuberik.com/v1alpha1
+kind: RolloutApproval
+metadata:
+  name: my-app-1-0-1
+  namespace: default
+spec:
+  rolloutRef:
+    name: my-app
+  version: "1.0.1"

@@ -24,12 +24,16 @@ Install the [Kuberik CLI](https://github.com/kuberik/kuberik) on Linux, macOS, o
 
 ## Examples
 
-### Approve a gate from CI
+### Approve a version from CI
+
+Approvals are per-version `RolloutApproval` objects. `kuberik approve` creates the same one the dashboard's Approve button creates (deterministic name, owned by the Rollout), so `kuberik revoke` can withdraw it. The CLI calls `kubectl`, and the identity running this step needs the `kuberik-rollout-approver` role.
 
 ```yaml
-- uses: kuberik/kuberik/action@main
 - uses: azure/setup-kubectl@v4
-- run: kuberik approve my-app-approval -n production
+- uses: kuberik/kuberik/action@main
+- run: kuberik approve my-app "$VERSION" -n production
+  env:
+    VERSION: "1.2.3"
 ```
 
 ### Install Kuberik on a kind cluster for integration tests

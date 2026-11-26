@@ -1,0 +1,20 @@
+# An ApprovalPolicy: every Rollout in this namespace that carries the label
+# kuberik.com/approval=required needs a RolloutApproval for each version
+# before that version is deployed. The policy owns a RolloutGate that
+# the controller manages; do not edit that gate by hand.
+#
+# Add the label to the Rollout from examples/basic-rollout:
+#   kubectl label rollout my-app kuberik.com/approval=required
+---
+apiVersion: kuberik.com/v1alpha1
+kind: ApprovalPolicy
+metadata:
+  name: manual-approval
+  namespace: default
+  annotations:
+    gate.kuberik.com/pretty-name: "Manual approval"
+    gate.kuberik.com/description: "A person approves each build before it is deployed."
+spec:
+  rolloutSelector:
+    matchLabels:
+      kuberik.com/approval: required

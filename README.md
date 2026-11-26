@@ -20,7 +20,7 @@ Kuberik is declarative, multi-stage progressive delivery for Kubernetes - from c
 ## Why Kuberik
 
 - **No pipelines to maintain.** Rollouts are CRDs reconciled by in-cluster controllers. There is no Jenkins, no Tekton DAG, no Argo Workflow to keep alive.
-- **Composes with Flux.** Kuberik does not replace your GitOps engine. It reads Flux `ImagePolicy` to discover releases and patches Flux source/kustomization resources to promote them.
+- **Composes with Flux.** Kuberik does not replace your GitOps engine. It lists releases from your registry with a `ReleaseSource` (Flux's image-reflector-controller is optional) and patches Flux source/kustomization resources to promote them. Flux 2.6 or later; any Flux source works.
 - **Health and gate signals are decoupled.** Datadog, Prometheus, OpenKruise, GitHub Deployments, and custom controllers all produce `HealthCheck` / `RolloutGate` resources independently - the rollout engine just reads them.
 - **Day-2 tools are first class.** A real CLI, a dashboard, structured controller logs, and a GitHub Action ship in the same release cycle as the controllers themselves.
 
@@ -100,6 +100,7 @@ See the [Action README](action/README.md) for more examples.
 ```mermaid
 graph TD
     RC[rollout-controller]
+    REL[release-controller]
 
     subgraph Integrations
         DD[datadog-controller]
@@ -116,6 +117,7 @@ graph TD
     PROM -->|HealthCheck| RC
     OK -->|RolloutStrategy| RC
     ENV -->|RolloutGate| RC
+    REL -->|ReleaseSlice| RC
     RC -->|status| DASH
 ```
 
@@ -123,12 +125,13 @@ graph TD
 
 | Component | Purpose |
 | --- | --- |
-| [rollout-controller](https://github.com/kuberik/rollout-controller) | Core controller. Manages Rollout, RolloutGate, HealthCheck, and RolloutSchedule CRDs. |
+| [rollout-controller](https://github.com/kuberik/rollout-controller) | Core controller. Manages Rollout, RolloutGate, HealthCheck, RolloutSchedule, ApprovalPolicy and RolloutApproval CRDs. |
+| [release-controller](https://github.com/kuberik/release-controller) | Lists an image's tags from the registry (`ReleaseSource`) and keeps the release catalogue Rollouts read. |
 | [rollout-dashboard](https://github.com/kuberik/rollout-dashboard) | Web UI for visualizing rollout status across namespaces. |
 | [datadog-controller](https://github.com/kuberik/datadog-controller) | Creates kuberik HealthCheck resources from DatadogMonitor status. |
-| [environment-controller](https://github.com/kuberik/environment-controller) | Reports deployment status to GitHub Deployments API; manages environment relationships. |
+| [environment-controller](https://github.com/kuberik/environment-controller) | Reports deployment status to GitHub Deployments API; orders environments by tier and rolls sites out in waves. |
 | [openkruise-controller](https://github.com/kuberik/openkruise-controller) | Integrates OpenKruise advanced rollout strategies with the Kuberik gate system. |
-| [prometheus-controller](https://github.com/kuberik/prometheus-controller) | Creates HealthCheck resources from Prometheus alert and query results. |
+| [prometheus-controller](https://github.com/kuberik/prometheus-controller) | Creates HealthCheck resources from Prometheus alerts. |
 
 ## Documentation
 

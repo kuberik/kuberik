@@ -4,11 +4,11 @@ Copy-pasteable manifests showing common Kuberik configurations. Each subdirector
 
 | Example | What it shows |
 | --- | --- |
-| [basic-rollout](basic-rollout) | A minimal Rollout tracking one image with a bake period |
-| [with-gate](with-gate) | Adding a manual approval gate to a Rollout |
+| [basic-rollout](basic-rollout) | A ReleaseSource and a Rollout reading it, with a bake period |
+| [with-gate](with-gate) | Requiring a per-version approval with an ApprovalPolicy |
 | [with-schedule](with-schedule) | Business-hours-only promotions and holiday change freezes |
 | [with-datadog](with-datadog) | A Datadog monitor that gates the bake period via a HealthCheck |
-| [with-prometheus](with-prometheus) | A PromQL query that gates the bake period via a HealthCheck |
-| [with-environments](with-environments) | Multi-environment promotion order (staging → production) |
+| [with-prometheus](with-prometheus) | A firing Prometheus alert that gates the bake period via a HealthCheck |
+| [with-environments](with-environments) | Tier-ordered promotion (staging → production), sites and waves |
 
 Full conceptual docs at [kuberik.com/docs](https://kuberik.com/docs/).

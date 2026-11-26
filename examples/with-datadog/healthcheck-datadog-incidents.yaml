@@ -1,23 +1,31 @@
-# A HealthCheck that goes unhealthy while a Datadog incident matching these
-# labels is open - independent of any specific monitor. Useful for blocking
-# rollouts during an active incident.
+# A HealthCheck that goes unhealthy while an open Datadog incident matches
+# this search query - independent of any specific monitor. Useful for
+# blocking rollouts during an active incident.
 #
 # Requires:
 #   - datadog-controller installed (kubectl apply -k https://github.com/kuberik/kuberik/config/install)
-#   - A secret with your Datadog api-key/app-key:
-#       kubectl create secret generic datadog-credentials \
+#   - Datadog credentials for the whole cluster, in a Secret in the
+#     controller's namespace (keys api-key, app-key; the app key needs
+#     the incident_read scope):
+#       kubectl -n kuberik-system create secret generic datadog-credentials \
 #         --from-literal=api-key=YOUR_API_KEY --from-literal=app-key=YOUR_APP_KEY
+#     The controller reads DATADOG_API_KEY or DD_API_KEY (and the matching
+#     app key and site variables); the bundle and the chart
+#     (integrations.datadog.existingSecret, default datadog-credentials)
+#     set the DD_* ones from the Secret when the pod starts, so restart
+#     the datadog-controller after creating or changing it.
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: HealthCheck
 metadata:
   name: payments-incidents-check
   namespace: production
+  labels:
+    app: my-app
   annotations:
-    # Comma-separated "key:value" labels. Incident must match all of them.
-    healthcheck.kuberik.com/datadog-incident-labels: "team:payments,env:prod"
-    healthcheck.kuberik.com/datadog-credentials-secret: "datadog-credentials"
-    # healthcheck.kuberik.com/datadog-site: "datadoghq.eu"
+    # Appended to "state:(active OR stable) AND ". Facets joined with AND;
+    # parentheses only around one facet's values.
+    healthcheck.kuberik.com/datadog-incident-query: "services:payments AND severity:(SEV-1 OR SEV-2)"
     # healthcheck.kuberik.com/requeue-interval: "60s"
 spec:
   class: datadog-incidents

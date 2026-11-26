@@ -1,5 +1,7 @@
-# A DatadogMonitor annotated for Kuberik. The datadog-controller will
-# create and keep a HealthCheck in sync with this monitor's status.
+# A DatadogMonitor annotated for Kuberik. The datadog-controller creates
+# a HealthCheck named datadog-check-<monitor name> and keeps it in sync
+# with this monitor's status. The monitor's labels are copied to the
+# HealthCheck, so the Rollout's spec.healthCheckSelector can match them.
 #
 # Requires:
 #   - datadog-controller installed (kubectl apply -k https://github.com/kuberik/kuberik/config/install)
@@ -11,6 +13,8 @@ kind: DatadogMonitor
 metadata:
   name: my-app-error-rate
   namespace: production
+  labels:
+    app: my-app
   annotations:
     kuberik.com/health-check: "true"
 spec:
