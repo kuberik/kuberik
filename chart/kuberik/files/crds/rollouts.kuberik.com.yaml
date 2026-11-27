@@ -70,11 +70,22 @@ spec:
               autoRollback:
                 description: |-
                   AutoRollback turns on rolling back to the last good build when a build
-                  fails its bake because of a failure the health checks say should roll back.
+                  fails its bake with a failure at or above autoRollback.minSeverity.
+                  Present means on (`autoRollback: {}` rolls back on Critical failures);
+                  absent means off.
                 properties:
-                  enabled:
-                    description: Enabled turns automatic rollback on. Off by default.
-                    type: boolean
+                  minSeverity:
+                    default: Critical
+                    description: |-
+                      MinSeverity is the lowest failure severity that rolls this Rollout back
+                      to the last good build: Critical rolls back on Critical failures, Warning
+                      on Warning and Critical ones. Failures carry their severity from the
+                      kuberik.com/severity annotation or the provider (see
+                      HealthCheckFailure.severity); unmarked is Critical.
+                    enum:
+                    - Critical
+                    - Warning
+                    type: string
                 type: object
               availableReleasesMinCount:
                 default: 30
@@ -271,6 +282,275 @@ spec:
                   This includes OCI artifact types, container image types, and other media types.
                   This field is set once for the entire rollout based on the latest available release.
                 type: string
+              autoRollback:
+                description: |-
+                  AutoRollback is where an automatic rollback would go for the newest deploy,
+                  written while it bakes (and after a failed bake that a dependency stopped from
+                  rolling back). Cleared when automatic rollback is off or the build baked.
+                properties:
+                  allowed:
+                    description: Allowed lists running consumers that Target breaks
+                      but whose edge allows it.
+                    items:
+                      description: DependencyBreak is one dependency a rollback target
+                        would break.
+                      properties:
+                        allowed:
+                          description: |-
+                            Allowed is true when the edge allows rolling back under this consumer
+                            (providerRollback is Allow or unset), so this break does not stop the rollback.
+                            Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                          type: boolean
+                        contract:
+                          description: Contract is the contract name the dependency
+                            gates on.
+                          type: string
+                        dependency:
+                          description: Dependency is the RolloutDependency; it lives
+                            in the consumer's namespace.
+                          type: string
+                        deployKind:
+                          description: |-
+                            DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                            only), so a build deployed by hand can be said so.
+                          enum:
+                          - Automatic
+                          - GateBypass
+                          - Unblock
+                          - Pin
+                          - ForceDeploy
+                          - AutoRollback
+                          type: string
+                        kind:
+                          description: |-
+                            Kind is ConsumerRequires (the target does not serve what a running consumer
+                            needs) or TargetRequires (the target needs a contract version its provider
+                            does not serve now).
+                          enum:
+                          - ConsumerRequires
+                          - TargetRequires
+                          type: string
+                        namespace:
+                          type: string
+                        reason:
+                          description: |-
+                            Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                            ProviderVersionUnknown.
+                          type: string
+                        requires:
+                          description: Requires is the constraint, verbatim. Empty
+                            when it could not be read.
+                          type: string
+                        rollout:
+                          description: |-
+                            Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                            or the provider (TargetRequires).
+                          type: string
+                        version:
+                          description: |-
+                            Version is, for ConsumerRequires, the consumer's running build (its OCI
+                            version, else its tag); for TargetRequires, the contract version the
+                            provider serves now (empty when unknown).
+                          type: string
+                      required:
+                      - contract
+                      - dependency
+                      - kind
+                      - namespace
+                      - reason
+                      - rollout
+                      type: object
+                    maxItems: 8
+                    type: array
+                  blockedBy:
+                    description: BlockedBy is, when Target is empty, what the usual
+                      target would break.
+                    items:
+                      description: DependencyBreak is one dependency a rollback target
+                        would break.
+                      properties:
+                        allowed:
+                          description: |-
+                            Allowed is true when the edge allows rolling back under this consumer
+                            (providerRollback is Allow or unset), so this break does not stop the rollback.
+                            Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                          type: boolean
+                        contract:
+                          description: Contract is the contract name the dependency
+                            gates on.
+                          type: string
+                        dependency:
+                          description: Dependency is the RolloutDependency; it lives
+                            in the consumer's namespace.
+                          type: string
+                        deployKind:
+                          description: |-
+                            DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                            only), so a build deployed by hand can be said so.
+                          enum:
+                          - Automatic
+                          - GateBypass
+                          - Unblock
+                          - Pin
+                          - ForceDeploy
+                          - AutoRollback
+                          type: string
+                        kind:
+                          description: |-
+                            Kind is ConsumerRequires (the target does not serve what a running consumer
+                            needs) or TargetRequires (the target needs a contract version its provider
+                            does not serve now).
+                          enum:
+                          - ConsumerRequires
+                          - TargetRequires
+                          type: string
+                        namespace:
+                          type: string
+                        reason:
+                          description: |-
+                            Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                            ProviderVersionUnknown.
+                          type: string
+                        requires:
+                          description: Requires is the constraint, verbatim. Empty
+                            when it could not be read.
+                          type: string
+                        rollout:
+                          description: |-
+                            Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                            or the provider (TargetRequires).
+                          type: string
+                        version:
+                          description: |-
+                            Version is, for ConsumerRequires, the consumer's running build (its OCI
+                            version, else its tag); for TargetRequires, the contract version the
+                            provider serves now (empty when unknown).
+                          type: string
+                      required:
+                      - contract
+                      - dependency
+                      - kind
+                      - namespace
+                      - reason
+                      - rollout
+                      type: object
+                    maxItems: 8
+                    type: array
+                  evaluatedTime:
+                    description: EvaluatedTime is when the evaluation last changed.
+                    format: date-time
+                    type: string
+                  for:
+                    description: For is the tag of history[0], the build this evaluation
+                      is for.
+                    type: string
+                  skipped:
+                    description: Skipped lists the earlier good builds passed over,
+                      newest first.
+                    items:
+                      description: SkippedRollbackTarget is an earlier good build
+                        an automatic rollback passed over.
+                      properties:
+                        breaks:
+                          description: Breaks are the dependencies that stopped it
+                            (Allowed=false only).
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        tag:
+                          description: Tag is the image tag of the skipped build.
+                          type: string
+                        version:
+                          description: Version is its OCI version, when it has one.
+                          type: string
+                      required:
+                      - breaks
+                      - tag
+                      type: object
+                    maxItems: 8
+                    type: array
+                  target:
+                    description: |-
+                      Target is the build chosen (tag): the newest earlier good build that breaks no
+                      blocking dependency. Empty when there is none.
+                    type: string
+                  usualTarget:
+                    description: |-
+                      UsualTarget is the newest earlier good build before dependency checks (tag).
+                      Empty when there is none.
+                    type: string
+                required:
+                - evaluatedTime
+                - for
+                type: object
               availableReleases:
                 description: |-
                   Deprecated: ignored; no longer written (cleared on reconcile). Read
@@ -318,6 +598,14 @@ spec:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string
@@ -490,6 +778,14 @@ spec:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string
@@ -559,6 +855,265 @@ spec:
                       required:
                       - name
                       type: object
+                    autoRollback:
+                      description: |-
+                        AutoRollback records how the target of an automatic rollback was chosen
+                        against the dependencies (on the rollback entry), or what stopped a rollback
+                        (on the failed entry).
+                      properties:
+                        allowed:
+                          description: Allowed lists running consumers that Target
+                            breaks but whose edge allows it.
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        blockedBy:
+                          description: BlockedBy is, when Target is empty, what the
+                            usual target would break.
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        skipped:
+                          description: Skipped lists the earlier good builds passed
+                            over, newest first.
+                          items:
+                            description: SkippedRollbackTarget is an earlier good
+                              build an automatic rollback passed over.
+                            properties:
+                              breaks:
+                                description: Breaks are the dependencies that stopped
+                                  it (Allowed=false only).
+                                items:
+                                  description: DependencyBreak is one dependency a
+                                    rollback target would break.
+                                  properties:
+                                    allowed:
+                                      description: |-
+                                        Allowed is true when the edge allows rolling back under this consumer
+                                        (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                        Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                      type: boolean
+                                    contract:
+                                      description: Contract is the contract name the
+                                        dependency gates on.
+                                      type: string
+                                    dependency:
+                                      description: Dependency is the RolloutDependency;
+                                        it lives in the consumer's namespace.
+                                      type: string
+                                    deployKind:
+                                      description: |-
+                                        DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                        only), so a build deployed by hand can be said so.
+                                      enum:
+                                      - Automatic
+                                      - GateBypass
+                                      - Unblock
+                                      - Pin
+                                      - ForceDeploy
+                                      - AutoRollback
+                                      type: string
+                                    kind:
+                                      description: |-
+                                        Kind is ConsumerRequires (the target does not serve what a running consumer
+                                        needs) or TargetRequires (the target needs a contract version its provider
+                                        does not serve now).
+                                      enum:
+                                      - ConsumerRequires
+                                      - TargetRequires
+                                      type: string
+                                    namespace:
+                                      type: string
+                                    reason:
+                                      description: |-
+                                        Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                        ProviderVersionUnknown.
+                                      type: string
+                                    requires:
+                                      description: Requires is the constraint, verbatim.
+                                        Empty when it could not be read.
+                                      type: string
+                                    rollout:
+                                      description: |-
+                                        Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                        or the provider (TargetRequires).
+                                      type: string
+                                    version:
+                                      description: |-
+                                        Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                        version, else its tag); for TargetRequires, the contract version the
+                                        provider serves now (empty when unknown).
+                                      type: string
+                                  required:
+                                  - contract
+                                  - dependency
+                                  - kind
+                                  - namespace
+                                  - reason
+                                  - rollout
+                                  type: object
+                                maxItems: 8
+                                type: array
+                              tag:
+                                description: Tag is the image tag of the skipped build.
+                                type: string
+                              version:
+                                description: Version is its OCI version, when it has
+                                  one.
+                                type: string
+                            required:
+                            - breaks
+                            - tag
+                            type: object
+                          maxItems: 8
+                          type: array
+                        target:
+                          description: |-
+                            Target is the build chosen (tag): the newest earlier good build that breaks no
+                            blocking dependency. Empty when there is none.
+                          type: string
+                        usualTarget:
+                          description: |-
+                            UsualTarget is the newest earlier good build before dependency checks (tag).
+                            Empty when there is none.
+                          type: string
+                      type: object
                     bakeEndTime:
                       description: |-
                         BakeEndTime is the time when the bake period ended for this deployment
@@ -624,7 +1179,8 @@ spec:
                                 check and whether it rolls back.
                               properties:
                                 kind:
-                                  description: Kind classifies the failure.
+                                  description: Kind classifies the failure. Display
+                                    only.
                                   enum:
                                   - Alert
                                   - Incident
@@ -644,16 +1200,30 @@ spec:
                                   description: RollsBack is true when this failure
                                     triggers an automatic rollback.
                                   type: boolean
+                                severity:
+                                  description: |-
+                                    Severity is the failure's resolved severity: the source object's
+                                    kuberik.com/severity annotation, else the HealthCheck's, else Critical.
+                                  enum:
+                                  - Critical
+                                  - Warning
+                                  type: string
                                 source:
                                   description: Source names what failed.
                                   type: string
                                 why:
                                   description: |-
-                                    Why is the rule that decided: CheckRollbackOn, NotInRollbackOn,
-                                    SourceOptedOut, SourceOptedIn or CheckErrorNever.
+                                    Why is the rule that decided: AtOrAboveThreshold (severity reaches the
+                                    Rollout's autoRollback.severity), BelowThreshold, CheckErrorNever (a check
+                                    that fails to run never rolls back) or PredatesDeploy (first seen before this
+                                    deploy started, so not attributed to it).
+                                  enum:
+                                  - AtOrAboveThreshold
+                                  - BelowThreshold
+                                  - CheckErrorNever
+                                  - PredatesDeploy
                                   type: string
                               required:
-                              - kind
                               - rollsBack
                               - source
                               - why
@@ -751,24 +1321,6 @@ spec:
                               - name
                               type: object
                             maxItems: 16
-                            type: array
-                          rollbackOn:
-                            description: |-
-                              RollbackOn is the check's spec.rollbackOn as resolved when the failure was
-                              recorded (the class default when the check sets none).
-                            items:
-                              description: FailureKind classifies why a health check
-                                failed.
-                              enum:
-                              - Alert
-                              - Incident
-                              - ApplyFailed
-                              - NotReady
-                              - TestFailed
-                              - CheckError
-                              - Unclassified
-                              type: string
-                            maxItems: 8
                             type: array
                         required:
                         - name
@@ -872,6 +1424,14 @@ spec:
                           description: Revision is the revision information extracted
                             from OCI annotations if available.
                           type: string
+                        rollbackBarrier:
+                          description: |-
+                            RollbackBarrier is true when this release carries the OCI annotation
+                            "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                            in the slice release's metadata). Automatic rollback never rolls back past a
+                            barrier: a target is rejected when any release after it, up to and including
+                            the failed one, is a barrier (for example a release that migrated a schema).
+                          type: boolean
                         tag:
                           description: Tag is the image tag (e.g., "v1.2.3", "latest").
                           type: string
@@ -935,6 +1495,14 @@ spec:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string

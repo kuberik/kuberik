@@ -77,6 +77,17 @@ spec:
                 required:
                 - name
                 type: object
+              providerRollback:
+                default: Allow
+                description: |-
+                  ProviderRollback says what an automatic rollback of the provider may do
+                  to this consumer. Allow (the default) rolls the provider back even when the
+                  consumer's running build requires more of the contract than the target
+                  serves. Block never rolls the provider back below what that build requires.
+                enum:
+                - Block
+                - Allow
+                type: string
               rolloutRef:
                 description: |-
                   RolloutRef references the consumer Rollout that this dependency gates.
