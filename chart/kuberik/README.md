@@ -69,6 +69,7 @@ helm install kuberik ./chart/kuberik \
 | `dashboard.enabled` | `false` | Install rollout-dashboard |
 | `dashboard.ingress.enabled` | `false` | Expose the dashboard via a `networking.k8s.io` Ingress |
 | `dashboard.ingress.host` | `""` | Required when ingress is enabled |
+| `dashboard.spokeUrlAllowlist` | `[]` | Hub only. Origins (`scheme://host[:port]`, `https://*.example.com` wildcard; list or comma string) the hub may send viewer credentials to. Unset drops every discovered spoke (fail closed); **set it on upgrade if you run a multi-cluster hub** |
 | `dashboard.gateway.enabled` | `false` | Expose the dashboard via a Gateway API HTTPRoute (alternative to `ingress`) |
 | `dashboard.gateway.parentRef.name` | `""` | Gateway the HTTPRoute attaches to |
 | `dashboard.gateway.hostname` | `""` | Hostname the dashboard serves at |

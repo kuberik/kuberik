@@ -180,6 +180,16 @@ dashboard:
   hubUrl: ""       # Hub dashboard URL. When set this instance acts as a spoke and
                    # redirects UI traffic to the hub.
   insecureSkipTLSVerify: false  # Skip TLS for hub→spoke calls (dev / self-signed only)
+  # Spoke trust list (SPOKE_URL_ALLOWLIST, via kuberik-cluster-info key
+  # spokeUrlAllowlist). REQUIRED on a hub: the dashboard only sends viewer
+  # credentials to spoke origins listed here and drops every other discovered
+  # spoke (fail closed). Origins are scheme://host[:port]; https://*.example.com
+  # matches subdomains (not the apex); http:// only when listed explicitly.
+  # Accepts a list or a comma-separated string. Not needed on a single cluster.
+  #   spokeUrlAllowlist:
+  #     - https://dashboard.prod.example.com
+  #     - https://*.spokes.example.com
+  spokeUrlAllowlist: []
   ingress:
     enabled: false
     # Required when enabled. e.g. "dashboard.kuberik.example.com"

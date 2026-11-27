@@ -1,5 +1,5 @@
 {{- if .Values.dashboard.enabled }}
-{{- if or .Values.dashboard.clusterName .Values.dashboard.url .Values.dashboard.hubUrl .Values.dashboard.insecureSkipTLSVerify }}
+{{- if or .Values.dashboard.clusterName .Values.dashboard.url .Values.dashboard.hubUrl .Values.dashboard.insecureSkipTLSVerify .Values.dashboard.spokeUrlAllowlist }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,6 +17,9 @@ data:
   {{- end }}
   {{- if .Values.dashboard.insecureSkipTLSVerify }}
   insecureSkipTLSVerify: "true"
+  {{- end }}
+  {{- if .Values.dashboard.spokeUrlAllowlist }}
+  spokeUrlAllowlist: {{ include "kuberik.spokeUrlAllowlist" . | quote }}
   {{- end }}
 ---
 {{- end }}
@@ -191,6 +194,13 @@ spec:
                   key: clientSecret
                   optional: true
             {{- end }}
+            # Trust list for hub->spoke calls; unset = every discovered spoke is dropped.
+            - name: SPOKE_URL_ALLOWLIST
+              valueFrom:
+                configMapKeyRef:
+                  name: kuberik-cluster-info
+                  key: spokeUrlAllowlist
+                  optional: true
           resources:
             {{- toYaml .Values.dashboard.resources | nindent 12 }}
       serviceAccountName: rollout-dashboard
