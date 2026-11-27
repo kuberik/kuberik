@@ -67,9 +67,30 @@ spec:
           spec:
             description: RolloutSpec defines the desired state of Rollout.
             properties:
+              autoRollback:
+                description: |-
+                  AutoRollback turns on rolling back to the last good build when a build
+                  fails its bake with a failure at or above autoRollback.minSeverity.
+                  Present means on (`autoRollback: {}` rolls back on Critical failures);
+                  absent means off.
+                properties:
+                  minSeverity:
+                    default: Critical
+                    description: |-
+                      MinSeverity is the lowest failure severity that rolls this Rollout back
+                      to the last good build: Critical rolls back on Critical failures, Warning
+                      on Warning and Critical ones. Failures carry their severity from the
+                      kuberik.com/severity annotation or the provider (see
+                      HealthCheckFailure.severity); unmarked is Critical.
+                    enum:
+                    - Critical
+                    - Warning
+                    type: string
+                type: object
               availableReleasesMinCount:
                 default: 30
                 description: |-
+                  Deprecated: ignored; retention is ReleaseSource.spec.retention. Removed in the next release.
                   AvailableReleasesMinCount defines the minimum number of available releases to always keep
                   When history is full, at least this many releases will be retained regardless of other criteria.
                   Defaults to 30 if not specified.
@@ -79,6 +100,7 @@ spec:
               availableReleasesRetentionDays:
                 default: 7
                 description: |-
+                  Deprecated: ignored; retention is ReleaseSource.spec.retention. Removed in the next release.
                   AvailableReleasesRetentionDays defines how many days of available releases to keep based on creation timestamp
                   When history is full, releases older than this retention period may be removed.
                   Defaults to 7 days if not specified.
@@ -200,9 +222,33 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                 type: object
+              releaseSourceRef:
+                description: |-
+                  ReleaseSourceRef names a ReleaseSource (kuberik.com, served by release-controller)
+                  in the same namespace that provides this Rollout's releases. When set (and the
+                  release-controller CRDs are installed) the Rollout reads its releases from the
+                  source's ReleaseSlice catalogue. This is the only release path: a Rollout
+                  without it gets no releases and reports ReleasesUpdated=False and Ready=False
+                  with reason ReleaseSourceRequired.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               releasesImagePolicy:
-                description: ReleasesImagePolicy specifies the ImagePolicy that provides
-                  available releases
+                description: |-
+                  Deprecated: ignored; removed in the next release. Releases come from
+                  releaseSourceRef; to migrate an existing Flux ImagePolicy, create a
+                  ReleaseSource with spec.oci.imagePolicyRef. A Rollout that sets it reports
+                  ReleasesImagePolicyIgnored=True.
+                  A value type, so Go clients always send "releasesImagePolicy: {}".
                 properties:
                   name:
                     default: ""
@@ -226,8 +272,6 @@ spec:
                 description: WantedVersion specifies a specific version to deploy,
                   overriding the automatic version selection
                 type: string
-            required:
-            - releasesImagePolicy
             type: object
           status:
             description: RolloutStatus defines the observed state of Rollout.
@@ -238,9 +282,280 @@ spec:
                   This includes OCI artifact types, container image types, and other media types.
                   This field is set once for the entire rollout based on the latest available release.
                 type: string
+              autoRollback:
+                description: |-
+                  AutoRollback is where an automatic rollback would go for the newest deploy,
+                  written while it bakes (and after a failed bake that a dependency stopped from
+                  rolling back). Cleared when automatic rollback is off or the build baked.
+                properties:
+                  allowed:
+                    description: Allowed lists running consumers that Target breaks
+                      but whose edge allows it.
+                    items:
+                      description: DependencyBreak is one dependency a rollback target
+                        would break.
+                      properties:
+                        allowed:
+                          description: |-
+                            Allowed is true when the edge allows rolling back under this consumer
+                            (providerRollback is Allow or unset), so this break does not stop the rollback.
+                            Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                          type: boolean
+                        contract:
+                          description: Contract is the contract name the dependency
+                            gates on.
+                          type: string
+                        dependency:
+                          description: Dependency is the RolloutDependency; it lives
+                            in the consumer's namespace.
+                          type: string
+                        deployKind:
+                          description: |-
+                            DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                            only), so a build deployed by hand can be said so.
+                          enum:
+                          - Automatic
+                          - GateBypass
+                          - Unblock
+                          - Pin
+                          - ForceDeploy
+                          - AutoRollback
+                          type: string
+                        kind:
+                          description: |-
+                            Kind is ConsumerRequires (the target does not serve what a running consumer
+                            needs) or TargetRequires (the target needs a contract version its provider
+                            does not serve now).
+                          enum:
+                          - ConsumerRequires
+                          - TargetRequires
+                          type: string
+                        namespace:
+                          type: string
+                        reason:
+                          description: |-
+                            Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                            ProviderVersionUnknown.
+                          type: string
+                        requires:
+                          description: Requires is the constraint, verbatim. Empty
+                            when it could not be read.
+                          type: string
+                        rollout:
+                          description: |-
+                            Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                            or the provider (TargetRequires).
+                          type: string
+                        version:
+                          description: |-
+                            Version is, for ConsumerRequires, the consumer's running build (its OCI
+                            version, else its tag); for TargetRequires, the contract version the
+                            provider serves now (empty when unknown).
+                          type: string
+                      required:
+                      - contract
+                      - dependency
+                      - kind
+                      - namespace
+                      - reason
+                      - rollout
+                      type: object
+                    maxItems: 8
+                    type: array
+                  blockedBy:
+                    description: BlockedBy is, when Target is empty, what the usual
+                      target would break.
+                    items:
+                      description: DependencyBreak is one dependency a rollback target
+                        would break.
+                      properties:
+                        allowed:
+                          description: |-
+                            Allowed is true when the edge allows rolling back under this consumer
+                            (providerRollback is Allow or unset), so this break does not stop the rollback.
+                            Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                          type: boolean
+                        contract:
+                          description: Contract is the contract name the dependency
+                            gates on.
+                          type: string
+                        dependency:
+                          description: Dependency is the RolloutDependency; it lives
+                            in the consumer's namespace.
+                          type: string
+                        deployKind:
+                          description: |-
+                            DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                            only), so a build deployed by hand can be said so.
+                          enum:
+                          - Automatic
+                          - GateBypass
+                          - Unblock
+                          - Pin
+                          - ForceDeploy
+                          - AutoRollback
+                          type: string
+                        kind:
+                          description: |-
+                            Kind is ConsumerRequires (the target does not serve what a running consumer
+                            needs) or TargetRequires (the target needs a contract version its provider
+                            does not serve now).
+                          enum:
+                          - ConsumerRequires
+                          - TargetRequires
+                          type: string
+                        namespace:
+                          type: string
+                        reason:
+                          description: |-
+                            Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                            ProviderVersionUnknown.
+                          type: string
+                        requires:
+                          description: Requires is the constraint, verbatim. Empty
+                            when it could not be read.
+                          type: string
+                        rollout:
+                          description: |-
+                            Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                            or the provider (TargetRequires).
+                          type: string
+                        version:
+                          description: |-
+                            Version is, for ConsumerRequires, the consumer's running build (its OCI
+                            version, else its tag); for TargetRequires, the contract version the
+                            provider serves now (empty when unknown).
+                          type: string
+                      required:
+                      - contract
+                      - dependency
+                      - kind
+                      - namespace
+                      - reason
+                      - rollout
+                      type: object
+                    maxItems: 8
+                    type: array
+                  evaluatedTime:
+                    description: EvaluatedTime is when the evaluation last changed.
+                    format: date-time
+                    type: string
+                  for:
+                    description: For is the tag of history[0], the build this evaluation
+                      is for.
+                    type: string
+                  skipped:
+                    description: Skipped lists the earlier good builds passed over,
+                      newest first.
+                    items:
+                      description: SkippedRollbackTarget is an earlier good build
+                        an automatic rollback passed over.
+                      properties:
+                        breaks:
+                          description: Breaks are the dependencies that stopped it
+                            (Allowed=false only).
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        tag:
+                          description: Tag is the image tag of the skipped build.
+                          type: string
+                        version:
+                          description: Version is its OCI version, when it has one.
+                          type: string
+                      required:
+                      - breaks
+                      - tag
+                      type: object
+                    maxItems: 8
+                    type: array
+                  target:
+                    description: |-
+                      Target is the build chosen (tag): the newest earlier good build that breaks no
+                      blocking dependency. Empty when there is none.
+                    type: string
+                  usualTarget:
+                    description: |-
+                      UsualTarget is the newest earlier good build before dependency checks (tag).
+                      Empty when there is none.
+                    type: string
+                required:
+                - evaluatedTime
+                - for
+                type: object
               availableReleases:
-                description: AvailableReleases is a list of all releases available
-                  in the releases repository.
+                description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read
+                  status.candidates and the ReleaseSlice catalogue instead. Removed in the next release.
+                  AvailableReleases is a list of all releases available in the releases repository.
                 items:
                   description: VersionInfo represents detailed information about a
                     version.
@@ -254,10 +569,43 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string
@@ -268,6 +616,53 @@ spec:
                   required:
                   - tag
                   type: object
+                type: array
+              candidates:
+                description: |-
+                  Candidates is the working set in slices mode: the K newest releases newer
+                  than the deployed one, plus any release newer than the deployed one that a
+                  gate's allowedVersions, the force-deploy or bypass-gates annotation, or
+                  spec.wantedVersion names. Newest first.
+                items:
+                  description: |-
+                    ReleaseCandidate is a release the Rollout could deploy next. It is
+                    deliberately lean: full release metadata (digest, revision, version,
+                    requires) lives in the ReleaseSlice catalogue and in history entries.
+                  properties:
+                    blockedBy:
+                      description: BlockedBy lists the gates that do not let this
+                        release through.
+                      items:
+                        type: string
+                      maxItems: 16
+                      type: array
+                    created:
+                      description: Created is the release creation time.
+                      format: date-time
+                      type: string
+                    failedBake:
+                      description: |-
+                        FailedBake is true when this Rollout's newest deploy of the release failed
+                        its bake. Automatic selection skips it until someone names the build
+                        (spec.wantedVersion, force-deploy or bypass-gates).
+                      type: boolean
+                    firstSeen:
+                      description: FirstSeen is when the catalogue first admitted
+                        this release.
+                      format: date-time
+                      type: string
+                    gated:
+                      description: Gated is true when the release passes every gate.
+                      type: boolean
+                    tag:
+                      description: Tag is the release tag.
+                      maxLength: 128
+                      type: string
+                  required:
+                  - gated
+                  - tag
+                  type: object
+                maxItems: 64
                 type: array
               conditions:
                 description: Conditions represents the current state of the rollout
@@ -337,6 +732,8 @@ spec:
                 type: string
               gatedReleaseCandidates:
                 description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read status.candidates
+                  (gated field) instead. Removed in the next release.
                   GatedReleaseCandidates is a list of release candidates that have passed through all gates.
                   This shows which versions are actually available for deployment after gate evaluation.
                 items:
@@ -352,10 +749,43 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string
@@ -381,8 +811,10 @@ spec:
                         type: string
                       type: array
                     bypassGates:
-                      description: BypassGates indicates whether this gate was bypassed
-                        for the current deployment.
+                      description: |-
+                        BypassGates indicates whether this gate was bypassed for the current deployment.
+                        With the rollout.kuberik.com/bypass-gates-only annotation, only the listed
+                        gates are marked.
                       type: boolean
                     message:
                       description: Message is a message describing the status of the
@@ -407,10 +839,297 @@ spec:
                   description: DeploymentHistoryEntry represents a single entry in
                     the deployment history.
                   properties:
+                    approval:
+                      description: |-
+                        Approval names the RolloutApproval that let this build through an
+                        approval gate. Nil when no approval gate applied, or when gates were bypassed.
+                      properties:
+                        by:
+                          description: By is the approval.kuberik.com/by annotation
+                            at deploy time, if set.
+                          type: string
+                        name:
+                          description: Name of the RolloutApproval, in the Rollout's
+                            namespace.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    autoRollback:
+                      description: |-
+                        AutoRollback records how the target of an automatic rollback was chosen
+                        against the dependencies (on the rollback entry), or what stopped a rollback
+                        (on the failed entry).
+                      properties:
+                        allowed:
+                          description: Allowed lists running consumers that Target
+                            breaks but whose edge allows it.
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        blockedBy:
+                          description: BlockedBy is, when Target is empty, what the
+                            usual target would break.
+                          items:
+                            description: DependencyBreak is one dependency a rollback
+                              target would break.
+                            properties:
+                              allowed:
+                                description: |-
+                                  Allowed is true when the edge allows rolling back under this consumer
+                                  (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                  Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                type: boolean
+                              contract:
+                                description: Contract is the contract name the dependency
+                                  gates on.
+                                type: string
+                              dependency:
+                                description: Dependency is the RolloutDependency;
+                                  it lives in the consumer's namespace.
+                                type: string
+                              deployKind:
+                                description: |-
+                                  DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                  only), so a build deployed by hand can be said so.
+                                enum:
+                                - Automatic
+                                - GateBypass
+                                - Unblock
+                                - Pin
+                                - ForceDeploy
+                                - AutoRollback
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind is ConsumerRequires (the target does not serve what a running consumer
+                                  needs) or TargetRequires (the target needs a contract version its provider
+                                  does not serve now).
+                                enum:
+                                - ConsumerRequires
+                                - TargetRequires
+                                type: string
+                              namespace:
+                                type: string
+                              reason:
+                                description: |-
+                                  Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                  ProviderVersionUnknown.
+                                type: string
+                              requires:
+                                description: Requires is the constraint, verbatim.
+                                  Empty when it could not be read.
+                                type: string
+                              rollout:
+                                description: |-
+                                  Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                  or the provider (TargetRequires).
+                                type: string
+                              version:
+                                description: |-
+                                  Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                  version, else its tag); for TargetRequires, the contract version the
+                                  provider serves now (empty when unknown).
+                                type: string
+                            required:
+                            - contract
+                            - dependency
+                            - kind
+                            - namespace
+                            - reason
+                            - rollout
+                            type: object
+                          maxItems: 8
+                          type: array
+                        skipped:
+                          description: Skipped lists the earlier good builds passed
+                            over, newest first.
+                          items:
+                            description: SkippedRollbackTarget is an earlier good
+                              build an automatic rollback passed over.
+                            properties:
+                              breaks:
+                                description: Breaks are the dependencies that stopped
+                                  it (Allowed=false only).
+                                items:
+                                  description: DependencyBreak is one dependency a
+                                    rollback target would break.
+                                  properties:
+                                    allowed:
+                                      description: |-
+                                        Allowed is true when the edge allows rolling back under this consumer
+                                        (providerRollback is Allow or unset), so this break does not stop the rollback.
+                                        Only an unreadable requirement of a target is ever Allowed for TargetRequires.
+                                      type: boolean
+                                    contract:
+                                      description: Contract is the contract name the
+                                        dependency gates on.
+                                      type: string
+                                    dependency:
+                                      description: Dependency is the RolloutDependency;
+                                        it lives in the consumer's namespace.
+                                      type: string
+                                    deployKind:
+                                      description: |-
+                                        DeployKind is how the consumer's running build was deployed (ConsumerRequires
+                                        only), so a build deployed by hand can be said so.
+                                      enum:
+                                      - Automatic
+                                      - GateBypass
+                                      - Unblock
+                                      - Pin
+                                      - ForceDeploy
+                                      - AutoRollback
+                                      type: string
+                                    kind:
+                                      description: |-
+                                        Kind is ConsumerRequires (the target does not serve what a running consumer
+                                        needs) or TargetRequires (the target needs a contract version its provider
+                                        does not serve now).
+                                      enum:
+                                      - ConsumerRequires
+                                      - TargetRequires
+                                      type: string
+                                    namespace:
+                                      type: string
+                                    reason:
+                                      description: |-
+                                        Reason is ConstraintNotSatisfied, RequirementUnreadable, InvalidVersion or
+                                        ProviderVersionUnknown.
+                                      type: string
+                                    requires:
+                                      description: Requires is the constraint, verbatim.
+                                        Empty when it could not be read.
+                                      type: string
+                                    rollout:
+                                      description: |-
+                                        Rollout and Namespace name the other side: the consumer (ConsumerRequires)
+                                        or the provider (TargetRequires).
+                                      type: string
+                                    version:
+                                      description: |-
+                                        Version is, for ConsumerRequires, the consumer's running build (its OCI
+                                        version, else its tag); for TargetRequires, the contract version the
+                                        provider serves now (empty when unknown).
+                                      type: string
+                                  required:
+                                  - contract
+                                  - dependency
+                                  - kind
+                                  - namespace
+                                  - reason
+                                  - rollout
+                                  type: object
+                                maxItems: 8
+                                type: array
+                              tag:
+                                description: Tag is the image tag of the skipped build.
+                                type: string
+                              version:
+                                description: Version is its OCI version, when it has
+                                  one.
+                                type: string
+                            required:
+                            - breaks
+                            - tag
+                            type: object
+                          maxItems: 8
+                          type: array
+                        target:
+                          description: |-
+                            Target is the build chosen (tag): the newest earlier good build that breaks no
+                            blocking dependency. Empty when there is none.
+                          type: string
+                        usualTarget:
+                          description: |-
+                            UsualTarget is the newest earlier good build before dependency checks (tag).
+                            Empty when there is none.
+                          type: string
+                      type: object
                     bakeEndTime:
                       description: |-
                         BakeEndTime is the time when the bake period ended for this deployment
                         This is when the bake process completed (either successfully or with failure).
+                      format: date-time
+                      type: string
+                    bakeHeldDuration:
+                      description: |-
+                        BakeHeldDuration is the total time the bake clock was stopped, excluding
+                        the hold in progress (see BakeHoldStartTime). Held time does not count
+                        toward the bake time.
+                      type: string
+                    bakeHoldStartTime:
+                      description: |-
+                        BakeHoldStartTime is when the bake clock was stopped because a selected
+                        health check was not Healthy. It is nil while the bake clock is running.
                       format: date-time
                       type: string
                     bakeStartTime:
@@ -429,6 +1148,18 @@ spec:
                         BakeStatusMessage provides details about the bake state for this deployment
                         This field contains human-readable information about why the bake status is what it is.
                       type: string
+                    deployKind:
+                      description: |-
+                        DeployKind is what caused this deploy. Entries written before it existed
+                        have none and are never rolled back to or from automatically.
+                      enum:
+                      - Automatic
+                      - GateBypass
+                      - Unblock
+                      - Pin
+                      - ForceDeploy
+                      - AutoRollback
+                      type: string
                     failedHealthChecks:
                       description: |-
                         FailedHealthChecks contains all health checks that failed during bake.
@@ -437,6 +1168,68 @@ spec:
                         description: FailedHealthCheck represents a health check that
                           failed during bake.
                         properties:
+                          class:
+                            description: Class is the health check's spec.class.
+                            type: string
+                          failures:
+                            description: Failures lists what failed in this check,
+                              each with the decision it led to.
+                            items:
+                              description: FailureVerdict is one failure of a health
+                                check and whether it rolls back.
+                              properties:
+                                kind:
+                                  description: Kind classifies the failure. Display
+                                    only.
+                                  enum:
+                                  - Alert
+                                  - Incident
+                                  - ApplyFailed
+                                  - NotReady
+                                  - TestFailed
+                                  - CheckError
+                                  - Unclassified
+                                  type: string
+                                message:
+                                  description: Message is one line of detail.
+                                  type: string
+                                reason:
+                                  description: Reason is the machine reason.
+                                  type: string
+                                rollsBack:
+                                  description: RollsBack is true when this failure
+                                    triggers an automatic rollback.
+                                  type: boolean
+                                severity:
+                                  description: |-
+                                    Severity is the failure's resolved severity: the source object's
+                                    kuberik.com/severity annotation, else the HealthCheck's, else Critical.
+                                  enum:
+                                  - Critical
+                                  - Warning
+                                  type: string
+                                source:
+                                  description: Source names what failed.
+                                  type: string
+                                why:
+                                  description: |-
+                                    Why is the rule that decided: AtOrAboveThreshold (severity reaches the
+                                    Rollout's autoRollback.severity), BelowThreshold, CheckErrorNever (a check
+                                    that fails to run never rolls back) or PredatesDeploy (first seen before this
+                                    deploy started, so not attributed to it).
+                                  enum:
+                                  - AtOrAboveThreshold
+                                  - BelowThreshold
+                                  - CheckErrorNever
+                                  - PredatesDeploy
+                                  type: string
+                              required:
+                              - rollsBack
+                              - source
+                              - why
+                              type: object
+                            maxItems: 16
+                            type: array
                           message:
                             description: Message is the error message from the health
                               check.
@@ -448,6 +1241,87 @@ spec:
                             description: Namespace is the namespace of the health
                               check.
                             type: string
+                          observations:
+                            description: |-
+                              Observations is a snapshot of the health check's status.observations taken
+                              when the failure was recorded. It is not updated afterwards, so the figure
+                              survives the health check recovering.
+                            items:
+                              description: |-
+                                HealthCheckObservation is one typed fact a health check evaluated.
+                                Numeric fields are decimal strings (e.g. "8.2", "0.082") so no precision is lost
+                                and the CRD stays float-free.
+                              properties:
+                                direction:
+                                  description: 'Direction, for Threshold: Above is
+                                    bad when value > limit; Below is bad when value
+                                    < limit.'
+                                  enum:
+                                  - Above
+                                  - Below
+                                  type: string
+                                healthy:
+                                  description: |-
+                                    Healthy says whether this observation alone is within bounds, so a consumer
+                                    can mark the offending one when several are listed.
+                                  type: boolean
+                                kind:
+                                  description: |-
+                                    Kind picks the drawing: Threshold (value vs limit), Ratio (value of total),
+                                    Count (value), State (no number; label only).
+                                  enum:
+                                  - Threshold
+                                  - Ratio
+                                  - Count
+                                  - State
+                                  type: string
+                                limit:
+                                  description: Limit is the boundary for a Threshold
+                                    observation, as a decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                message:
+                                  description: |-
+                                    Message says what this observation is about when Name alone does not: the
+                                    failing resource's status message, the alert's identifying labels, the
+                                    monitor's alerting groups. One line of plain text. Consumers show it
+                                    verbatim and never parse it.
+                                  maxLength: 256
+                                  type: string
+                                name:
+                                  description: Name of the observed quantity, shown
+                                    as the label ("error rate", "p99 latency").
+                                  minLength: 1
+                                  type: string
+                                observedTime:
+                                  description: ObservedTime is when the provider last
+                                    evaluated this observation.
+                                  format: date-time
+                                  type: string
+                                total:
+                                  description: Total is the denominator for a Ratio
+                                    observation, as a decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                unit:
+                                  description: 'Unit of the numbers: Percent (a ratio
+                                    0..1), Milliseconds, Seconds, Count, or free text.'
+                                  type: string
+                                value:
+                                  description: Value is the observed number, as a
+                                    decimal string.
+                                  pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                  type: string
+                                window:
+                                  description: Window the observation covers, e.g.
+                                    "5m".
+                                  type: string
+                              required:
+                              - kind
+                              - name
+                              type: object
+                            maxItems: 16
+                            type: array
                         required:
                         - name
                         - namespace
@@ -458,14 +1332,27 @@ spec:
                         this history entry.
                       format: int64
                       type: integer
+                    lastRetryTimestamp:
+                      description: |-
+                        LastRetryTimestamp is the time when a retry was most recently requested for this deployment.
+                        When set, downstream controllers (health checks, kruise rollout step gates) use this as a
+                        cutoff: stale failure conditions with LastTransitionTime older than LastRetryTimestamp are
+                        ignored as they reflect the pre-retry state.
+                      format: date-time
+                      type: string
                     message:
                       description: |-
                         Message provides a descriptive message about this deployment entry
                         This field contains human-readable information about the deployment context.
                         For automatic deployments, it includes information about gate bypass and failed bake unblock.
                         For manual deployments (when wantedVersion is specified), it can contain a custom message
-                        provided via the "rollout.kuberik.com/deployment-message" annotation, or defaults to "Manual deployment".
+                        provided via the "rollout.kuberik.com/deploy-message" annotation, or defaults to "Manual deployment".
                       type: string
+                    rollbackOf:
+                      description: RollbackOf is the ID of the history entry this
+                        deploy rolled back.
+                      format: int64
+                      type: integer
                     timestamp:
                       description: Timestamp is the time when the deployment occurred.
                       format: date-time
@@ -508,10 +1395,43 @@ spec:
                           description: Digest is the image digest if available from
                             the ImagePolicy.
                           type: string
+                        metadataUnresolved:
+                          description: |-
+                            MetadataUnresolved is true when this release's OCI manifest could not be
+                            read, so Requires and the version fields say nothing about the image.
+                            A RolloutDependency blocks such a release rather than reading the absent
+                            annotations as "declares no requirement", which would open the gate
+                            whenever the registry is unreachable.
+                          type: boolean
+                        requires:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            Requires maps a contract name to what this release requires of that
+                            contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                            annotations. Values are version constraints as defined by
+                            github.com/Masterminds/semver, applied verbatim — note that a bare version
+                            is an exact match there, not a floor.
+                            RolloutDependency uses these to gate this release on the deployed version of
+                            the Rollout providing each contract.
+
+                            Bounded because it is populated from image annotations, which are outside
+                            this controller's trust boundary, and is stored on every release and every
+                            history entry.
+                          maxProperties: 32
+                          type: object
                         revision:
                           description: Revision is the revision information extracted
                             from OCI annotations if available.
                           type: string
+                        rollbackBarrier:
+                          description: |-
+                            RollbackBarrier is true when this release carries the OCI annotation
+                            "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                            in the slice release's metadata). Automatic rollback never rolls back past a
+                            barrier: a target is rejected when any release after it, up to and including
+                            the failed one, is a barrier (for example a release that migrated a schema).
+                          type: boolean
                         tag:
                           description: Tag is the image tag (e.g., "v1.2.3", "latest").
                           type: string
@@ -529,6 +1449,8 @@ spec:
                 type: array
               releaseCandidates:
                 description: |-
+                  Deprecated: ignored; no longer written (cleared on reconcile). Read status.candidates instead.
+                  Removed in the next release.
                   ReleaseCandidates is a list of releases that are candidates for the next deployment.
                   These are filtered from AvailableReleases based on deployment history and version ordering.
                 items:
@@ -544,10 +1466,43 @@ spec:
                       description: Digest is the image digest if available from the
                         ImagePolicy.
                       type: string
+                    metadataUnresolved:
+                      description: |-
+                        MetadataUnresolved is true when this release's OCI manifest could not be
+                        read, so Requires and the version fields say nothing about the image.
+                        A RolloutDependency blocks such a release rather than reading the absent
+                        annotations as "declares no requirement", which would open the gate
+                        whenever the registry is unreachable.
+                      type: boolean
+                    requires:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Requires maps a contract name to what this release requires of that
+                        contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                        annotations. Values are version constraints as defined by
+                        github.com/Masterminds/semver, applied verbatim — note that a bare version
+                        is an exact match there, not a floor.
+                        RolloutDependency uses these to gate this release on the deployed version of
+                        the Rollout providing each contract.
+
+                        Bounded because it is populated from image annotations, which are outside
+                        this controller's trust boundary, and is stored on every release and every
+                        history entry.
+                      maxProperties: 32
+                      type: object
                     revision:
                       description: Revision is the revision information extracted
                         from OCI annotations if available.
                       type: string
+                    rollbackBarrier:
+                      description: |-
+                        RollbackBarrier is true when this release carries the OCI annotation
+                        "com.kuberik.rollout.rollback-barrier: true" (release-controller publishes it
+                        in the slice release's metadata). Automatic rollback never rolls back past a
+                        barrier: a target is rejected when any release after it, up to and including
+                        the failed one, is a barrier (for example a release that migrated a schema).
+                      type: boolean
                     tag:
                       description: Tag is the image tag (e.g., "v1.2.3", "latest").
                       type: string
@@ -559,6 +1514,32 @@ spec:
                   - tag
                   type: object
                 type: array
+              releaseSource:
+                description: ReleaseSource summarises the ReleaseSource this Rollout
+                  reads (slices mode only).
+                properties:
+                  count:
+                    description: Count is the number of releases in the catalogue.
+                    format: int32
+                    type: integer
+                  name:
+                    description: Name of the ReleaseSource.
+                    type: string
+                  newest:
+                    description: Newest is the tag of the newest release in the catalogue.
+                    type: string
+                  observedAt:
+                    description: ObservedAt is when name, ready, count or newest last
+                      changed.
+                    format: date-time
+                    type: string
+                  ready:
+                    description: Ready mirrors the ReleaseSource Ready condition.
+                    type: boolean
+                required:
+                - name
+                - ready
+                type: object
               source:
                 description: |-
                   Source is the source information extracted from OCI annotations.

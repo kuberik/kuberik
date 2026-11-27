@@ -45,6 +45,25 @@ spec:
                 items:
                   type: string
                 type: array
+              appliesTo:
+                default:
+                - Deploy
+                description: |-
+                  AppliesTo says which moves the gate decides: Deploy (moving forward to a
+                  new release, the only direction before this field existed) and/or Rollback
+                  (an automatic rollback to an earlier build). Unset means Deploy only, so
+                  existing gates are unchanged. A gate that does not list Deploy is ignored
+                  when the Rollout picks its next release.
+                items:
+                  description: GateDirection is a kind of move a RolloutGate can decide.
+                  enum:
+                  - Deploy
+                  - Rollback
+                  type: string
+                maxItems: 2
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
               passing:
                 default: true
                 description: Passing is true if the RolloutGate is passing.
@@ -71,6 +90,15 @@ spec:
             type: object
           status:
             description: RolloutGateStatus defines the observed state of RolloutGate.
+            properties:
+              lastHandledRefresh:
+                description: |-
+                  LastHandledRefresh is the refresh request the gate's controller last
+                  answered: the value of the kuberik.com/refresh-requested annotation it had
+                  re-evaluated the gate for. Before an automatic rollback the Rollout asks every
+                  gate that carries the kuberik.com/gate-controller label and applies to
+                  Rollback to refresh, and waits until this field echoes the request.
+                type: string
             type: object
         type: object
     served: true

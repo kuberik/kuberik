@@ -22,6 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Refuse to publish with unpinned component versions
+        # Component image versions are RELEASE-PLACEHOLDER between releases;
+        # the release process fills them with hack/set-chart-versions.sh.
+        run: hack/set-chart-versions.sh --check
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"

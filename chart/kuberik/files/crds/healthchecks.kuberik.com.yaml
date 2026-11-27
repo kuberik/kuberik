@@ -46,6 +46,79 @@ spec:
           status:
             description: HealthCheckStatus defines the observed state of HealthCheck.
             properties:
+              failures:
+                description: |-
+                  Failures is the witness of what failed, by source and kind. Entries are
+                  added when a source fails and kept after it recovers; the reset at a new
+                  deploy or retry clears them together with lastErrorTime.
+                items:
+                  description: |-
+                    HealthCheckFailure is one thing that failed, with its kind. Like
+                    lastErrorTime it is a witness: it stays after the source recovers and is
+                    cleared only by the reset at the next deploy or retry.
+                  properties:
+                    firstSeenTime:
+                      description: FirstSeenTime is when this source and kind were
+                        first recorded as failing.
+                      format: date-time
+                      type: string
+                    kind:
+                      description: Kind classifies the failure. Display only; it does
+                        not decide rollbacks.
+                      enum:
+                      - Alert
+                      - Incident
+                      - ApplyFailed
+                      - NotReady
+                      - TestFailed
+                      - CheckError
+                      - Unclassified
+                      type: string
+                    message:
+                      description: Message is one line of detail.
+                      maxLength: 256
+                      type: string
+                    reason:
+                      description: |-
+                        Reason is the machine reason (RolloutTestFailed, JobFailed,
+                        ProgressDeadlineExceeded, BuildFailed, ...).
+                      maxLength: 128
+                      type: string
+                    severity:
+                      description: |-
+                        Severity is how severe this failure is: Critical or Warning. Providers that
+                        are not the kustomization check fill it from their own signal: the
+                        Prometheus alert's "severity" label (warning = Warning; critical, missing
+                        or anything else = Critical), Datadog monitor priority and incident
+                        severity (P1/P2 and SEV-1/SEV-2 = Critical, P3-P5 and SEV-3-SEV-5 =
+                        Warning, unset = Critical). A kuberik.com/severity annotation on the
+                        HealthCheck overrides the provider's value. Empty means unmarked: the
+                        HealthCheck's annotation applies, else Critical.
+                      enum:
+                      - Critical
+                      - Warning
+                      type: string
+                    source:
+                      description: Source names what failed, e.g. "RolloutTest ns/name"
+                        or "Kustomization ns/name".
+                      maxLength: 256
+                      type: string
+                  required:
+                  - firstSeenTime
+                  - source
+                  type: object
+                maxItems: 16
+                type: array
+              failuresDeferred:
+                description: |-
+                  FailuresDeferred says the check is Unhealthy for a reason other sources
+                  report (for example a Kruise Rollout left to its RolloutTests), so an empty
+                  failures list does not yet mean the failure is unclassified. A Rollout with
+                  automatic rollback enabled waits up to 2 minutes, from when it starts
+                  waiting, for those sources to report before it treats the failure as
+                  unclassified. Like failures it is a witness: set by the check, cleared only
+                  by the reset at a new deploy or retry.
+                type: boolean
               lastChangeTime:
                 description: LastChangeTime is the timestamp when the health status
                   last changed
@@ -60,6 +133,84 @@ spec:
                 description: Message provides additional details about the health
                   status
                 type: string
+              observations:
+                description: |-
+                  Observations are the facts the check last evaluated, most important first.
+                  Consumers (the dashboard) draw the first one as the headline figure; Message
+                  stays the human sentence. Providers may leave this empty.
+                items:
+                  description: |-
+                    HealthCheckObservation is one typed fact a health check evaluated.
+                    Numeric fields are decimal strings (e.g. "8.2", "0.082") so no precision is lost
+                    and the CRD stays float-free.
+                  properties:
+                    direction:
+                      description: 'Direction, for Threshold: Above is bad when value
+                        > limit; Below is bad when value < limit.'
+                      enum:
+                      - Above
+                      - Below
+                      type: string
+                    healthy:
+                      description: |-
+                        Healthy says whether this observation alone is within bounds, so a consumer
+                        can mark the offending one when several are listed.
+                      type: boolean
+                    kind:
+                      description: |-
+                        Kind picks the drawing: Threshold (value vs limit), Ratio (value of total),
+                        Count (value), State (no number; label only).
+                      enum:
+                      - Threshold
+                      - Ratio
+                      - Count
+                      - State
+                      type: string
+                    limit:
+                      description: Limit is the boundary for a Threshold observation,
+                        as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    message:
+                      description: |-
+                        Message says what this observation is about when Name alone does not: the
+                        failing resource's status message, the alert's identifying labels, the
+                        monitor's alerting groups. One line of plain text. Consumers show it
+                        verbatim and never parse it.
+                      maxLength: 256
+                      type: string
+                    name:
+                      description: Name of the observed quantity, shown as the label
+                        ("error rate", "p99 latency").
+                      minLength: 1
+                      type: string
+                    observedTime:
+                      description: ObservedTime is when the provider last evaluated
+                        this observation.
+                      format: date-time
+                      type: string
+                    total:
+                      description: Total is the denominator for a Ratio observation,
+                        as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    unit:
+                      description: 'Unit of the numbers: Percent (a ratio 0..1), Milliseconds,
+                        Seconds, Count, or free text.'
+                      type: string
+                    value:
+                      description: Value is the observed number, as a decimal string.
+                      pattern: ^-?[0-9]+(\.[0-9]+)?$
+                      type: string
+                    window:
+                      description: Window the observation covers, e.g. "5m".
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                maxItems: 16
+                type: array
               status:
                 description: Status indicates the health state of the check (e.g.,
                   'Healthy', 'Unhealthy', 'Pending')

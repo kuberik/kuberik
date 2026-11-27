@@ -11,6 +11,17 @@ permissions:
 env:
   # Flux release installed on the kind clusters; bump together with the Flux docs.
   FLUX_VERSION: 2.10.1
+  # Component image versions in the chart are RELEASE-PLACEHOLDER until release
+  # (see chart/kuberik/templates/_versions.tpl), which is not a pullable tag.
+  # The kind jobs install with these published tags instead, release-controller
+  # included (v0.1.0, its first release).
+  CHART_TEST_IMAGE_FLAGS: >-
+    --set rolloutController.image.tag=sha-b117e9f
+    --set dashboard.image.tag=v0.9.2
+    --set integrations.datadog.image.tag=v0.1.0
+    --set integrations.openkruise.image.tag=v0.4.1
+    --set integrations.environment.image.tag=v0.1.5
+    --set releaseController.image.tag=v0.1.0
 
 jobs:
   build:
@@ -68,6 +79,8 @@ jobs:
           version: v3.16.3
       - name: Lint chart
         run: helm lint chart/kuberik
+      - name: Render tests
+        run: chart/kuberik/tests/render-test.sh
       - name: Render chart (defaults)
         run: helm template kuberik chart/kuberik > /tmp/kuberik-default.yaml
       - name: Render chart (all integrations + dashboard)
@@ -88,8 +101,8 @@ jobs:
       - name: Validate rendered output with kubeval-style check
         run: |
           # Count top-level kinds to confirm dashboard + integrations rendered
-          grep -c "^kind: Deployment" /tmp/kuberik-all.yaml | grep -q "^5$" || \
-            { echo "expected 5 Deployments (rollout + 3 integrations + dashboard)"; exit 1; }
+          grep -c "^kind: Deployment" /tmp/kuberik-all.yaml | grep -q "^6$" || \
+            { echo "expected 6 Deployments (rollout + release + 3 integrations + dashboard)"; exit 1; }
       - name: Validate output is non-empty
         run: |
           test -s /tmp/kuberik-default.yaml
@@ -133,12 +146,17 @@ jobs:
           helm install kuberik chart/kuberik \
             --namespace kuberik-system --create-namespace \
             --set createNamespace=false \
+            $CHART_TEST_IMAGE_FLAGS \
             $extra_flags \
             --wait --timeout 5m
       - name: Verify rollout-controller is Available
         run: |
           kubectl wait --for=condition=Available --timeout=120s \
             -n kuberik-system deployment/rollout-controller
+      - name: Verify release-controller is Available
+        run: |
+          kubectl wait --for=condition=Available --timeout=120s \
+            -n kuberik-system deployment/release-controller
       - name: Run helm test
         run: helm test kuberik --namespace kuberik-system --timeout 3m
       - name: Apply chart sample manifests
@@ -147,11 +165,15 @@ jobs:
         # declare metadata.namespace: default, so apply in-place.
         run: |
           set -euo pipefail
-          kubectl apply -f chart/kuberik/samples/rollout.yaml
+          # samples/rollout.yaml is not applied: this job runs with the
+          # release-controller disabled, so no ReleaseSource becomes Ready
+          # for the Rollout to read. Apply it again once the job can run the
+          # release-controller.
+          kubectl apply -f chart/kuberik/samples/releasesource.yaml
           kubectl apply -f chart/kuberik/samples/gate.yaml
           kubectl apply -f chart/kuberik/samples/schedule.yaml
           kubectl apply -f chart/kuberik/samples/healthcheck.yaml
-          kubectl get rollout,rolloutgate,rolloutschedule,healthcheck -n default
+          kubectl get releasesource,rolloutgate,rolloutschedule,healthcheck -n default
 
       - name: Apply repo examples
         # Validates the user-facing examples render against the chart's CRDs.
@@ -165,13 +187,15 @@ jobs:
           for ns in production staging; do
             kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
-          kubectl apply -f examples/basic-rollout/rollout.yaml
+          # basic-rollout/rollout.yaml is not applied for the same reason
+          # (no release-controller in this job); validate its ReleaseSource only.
+          kubectl apply -f examples/basic-rollout/releasesource.yaml
           kubectl apply -f examples/with-gate/gate.yaml
           kubectl apply -f examples/with-schedule/schedule.yaml
           kubectl apply -f examples/with-schedule/freeze.yaml
           kubectl apply -f examples/with-environments/environments.yaml
           kubectl get rollout,rolloutgate,rolloutschedule,clusterrolloutschedule,environment -A | \
-            grep -E 'my-app|business-hours|christmas-freeze|staging|production'
+            grep -E 'business-hours|christmas-freeze|staging|production'
       - name: Verify helm uninstall is clean
         # Uninstall should leave no Deployments or Services in
         # kuberik-system. CRDs intentionally remain: they carry
@@ -233,6 +257,7 @@ jobs:
           helm upgrade kuberik chart/kuberik \
             --namespace kuberik-system \
             --set createNamespace=false \
+            $CHART_TEST_IMAGE_FLAGS \
             --wait --timeout 3m
       - name: Verify the upgrade brought the CRDs along
         # Every CRD the chart ships must exist and be release-managed

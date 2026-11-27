@@ -93,9 +93,9 @@ metadata:
     rollout.kuberik.com/rollout: "my-app"
 spec:
   url: oci://ghcr.io/myorg/my-app
-  ref:
-    tag: "1.0.0"
 ```
+
+Leave `spec.ref` out. The Rollout writes `spec.ref.tag` at its first deploy, and if Git sets it the deploy is refused with `OCIRepositoryFieldConflict`. Until that first deploy Flux fetches the `latest` tag, so the OCIRepository may report not ready if the artifact has none; that is expected.
 
 For a `Kustomization` with substitution:
 
@@ -107,9 +107,13 @@ metadata:
   annotations:
     rollout.kuberik.com/substitute.IMAGE_TAG.from: "my-app"
 spec:
-  postBuild:
-    substitute:
-      IMAGE_TAG: "1.0.0"
+  postBuild: {}
+```
+
+Do not set `IMAGE_TAG` under `postBuild.substitute` in Git: Kuberik writes that variable itself, and a value you also set there makes the next deploy fail with `KustomizationFieldConflict`. Give the manifests a default instead, which Flux uses until the first deploy:
+
+```yaml
+image: ghcr.io/myorg/my-app:${IMAGE_TAG:=1.0.0}
 ```
 
 ### 4. Check rollout status

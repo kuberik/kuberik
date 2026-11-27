@@ -129,6 +129,19 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - secrets
   - services
   verbs:
@@ -185,6 +198,7 @@ rules:
 - apiGroups:
   - kuberik.com
   resources:
+  - releaseslices
   - rollouts
   verbs:
   - get
@@ -322,7 +336,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: {{ printf "%s:%s" .Values.integrations.environment.image.repository (.Values.integrations.environment.image.tag | default "v0.1.5") | quote }}
+        image: {{ printf "%s:%s" .Values.integrations.environment.image.repository (.Values.integrations.environment.image.tag | default (include "kuberik.version.environmentController" .)) | quote }}
         livenessProbe:
           httpGet:
             path: /healthz

@@ -77,6 +77,17 @@ spec:
                 required:
                 - name
                 type: object
+              providerRollback:
+                default: Allow
+                description: |-
+                  ProviderRollback says what an automatic rollback of the provider may do
+                  to this consumer. Allow (the default) rolls the provider back even when the
+                  consumer's running build requires more of the contract than the target
+                  serves. Block never rolls the provider back below what that build requires.
+                enum:
+                - Block
+                - Allow
+                type: string
               rolloutRef:
                 description: |-
                   RolloutRef references the consumer Rollout that this dependency gates.
@@ -128,8 +139,16 @@ spec:
                     dependency, and why.
                   properties:
                     reason:
-                      description: Reason is a short, machine-readable reason the
-                        candidate is blocked.
+                      description: |-
+                        Reason is a short, machine-readable reason the candidate is blocked:
+                        MetadataUnresolved (the release's manifest could not be read),
+                        ProviderVersionUnknown (the provider has no succeeded release with a
+                        readable contract version), InvalidVersion (the constraint or a version
+                        does not parse), ConstraintNotSatisfied (the provider's newest succeeded
+                        release does not satisfy the constraint), RunningVersionNotSatisfied (the
+                        provider's running release, still baking or failed, does not satisfy it)
+                        or RunningVersionUnknown (that running release has no readable contract
+                        version).
                       type: string
                     requiredVersion:
                       description: |-

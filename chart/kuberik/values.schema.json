@@ -17,6 +17,13 @@
         "keep": { "type": "boolean" }
       }
     },
+    "admissionPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "rolloutController": {
       "type": "object",
       "additionalProperties": true,
@@ -46,6 +53,21 @@
           "properties": {
             "name": { "type": "string" },
             "annotations": { "type": "object" }
+          }
+        }
+      }
+    },
+    "releaseController": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string" }
           }
         }
       }

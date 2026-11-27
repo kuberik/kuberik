@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -59,27 +60,53 @@ spec:
                 - type
                 type: object
               environment:
-                description: Environment is the environment name (e.g., "production",
-                  "staging")
+                description: |-
+                  Environment is the tier this Environment belongs to. Tiers have a fixed
+                  order, earliest first: dev, test, staging, prod. Each tier accepts the
+                  aliases listed below; aliases of one tier are the same environment for
+                  wave grouping, upstream lookup and GitHub matching (the GitHub
+                  environment name is kept as written here). An Environment is gated on
+                  the nearest earlier tier that has registered sites for the same name.
+                enum:
+                - dev
+                - development
+                - test
+                - qa
+                - staging
+                - stage
+                - preprod
+                - prod
+                - production
                 type: string
+              lockstep:
+                description: |-
+                  Lockstep, when true, stops the wave-1 leader from selecting a new version
+                  until every wave of this environment has baked the currently selected one.
+                  The wave-1 leader's value governs; a disagreeing member surfaces a
+                  LockstepMismatch condition.
+                type: boolean
               name:
                 description: Name is the name of the GitHub deployment (the "kuberik"
                   prefix will be automatically added for GitHub backend if not already
                   present)
                 type: string
               relationship:
-                description: Relationship defines how this environment relates to
-                  another environment
+                description: |-
+                  Relationship is DEPRECATED and ignored: environment order is fixed
+                  (dev, test, staging, prod). It is still accepted so that existing
+                  manifests keep applying; the Environment reports a Deprecated condition.
+                  It will be removed in a later release.
                 properties:
                   environment:
                     description: Environment is the environment name this environment
-                      relates to
+                      related to.
                     type: string
                   type:
-                    description: 'Type is the type of relationship: "After" or "Parallel"'
+                    description: Type is the relationship type.
                     enum:
                     - After
                     - Parallel
+                    - Alongside
                     type: string
                 required:
                 - environment
@@ -106,8 +133,30 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              site:
+                description: |-
+                  Site identifies where this instance of the environment runs (e.g. a region
+                  or cluster name such as "eu-west-1"). Members of the same environment that
+                  run in different clusters are told apart by site. When empty, the
+                  controller's default site is used (key "site" of the optional
+                  kuberik-cluster-info ConfigMap in the controller namespace), and when that
+                  is not set either, the site is "default". Only one Environment (across
+                  clusters) may own a given deployment name, tier and site; a second one is
+                  reported with WaveReady=False, reason DuplicateSite, and posts nothing.
+                maxLength: 63
+                pattern: ^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$
+                type: string
+              wave:
+                description: |-
+                  Wave is the rollout wave of this site within its environment ("prod wave 1").
+                  Waves of one environment roll out in order: wave N starts a version only
+                  after every site of wave N-1 baked it. Defaults to 1.
+                format: int32
+                minimum: 1
+                type: integer
             required:
             - backend
+            - environment
             - name
             - rolloutRef
             type: object
@@ -195,7 +244,8 @@ spec:
                     deployment.
                   properties:
                     environment:
-                      description: Environment is the environment name
+                      description: Environment is the canonical tier name (dev, test,
+                        staging, prod)
                       type: string
                     environmentUrl:
                       description: EnvironmentURL is the URL of the actual deployed
@@ -249,6 +299,80 @@ spec:
                                   description: Namespace is the namespace of the health
                                     check.
                                   type: string
+                                observations:
+                                  description: |-
+                                    Observations is a snapshot of the health check's status.observations taken
+                                    when the failure was recorded. It is not updated afterwards, so the figure
+                                    survives the health check recovering.
+                                  items:
+                                    description: |-
+                                      HealthCheckObservation is one typed fact a health check evaluated.
+                                      Numeric fields are decimal strings (e.g. "8.2", "0.082") so no precision is lost
+                                      and the CRD stays float-free.
+                                    properties:
+                                      direction:
+                                        description: 'Direction, for Threshold: Above
+                                          is bad when value > limit; Below is bad
+                                          when value < limit.'
+                                        enum:
+                                        - Above
+                                        - Below
+                                        type: string
+                                      healthy:
+                                        description: |-
+                                          Healthy says whether this observation alone is within bounds, so a consumer
+                                          can mark the offending one when several are listed.
+                                        type: boolean
+                                      kind:
+                                        description: |-
+                                          Kind picks the drawing: Threshold (value vs limit), Ratio (value of total),
+                                          Count (value), State (no number; label only).
+                                        enum:
+                                        - Threshold
+                                        - Ratio
+                                        - Count
+                                        - State
+                                        type: string
+                                      limit:
+                                        description: Limit is the boundary for a Threshold
+                                          observation, as a decimal string.
+                                        pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                        type: string
+                                      name:
+                                        description: Name of the observed quantity,
+                                          shown as the label ("error rate", "p99 latency").
+                                        minLength: 1
+                                        type: string
+                                      observedTime:
+                                        description: ObservedTime is when the provider
+                                          last evaluated this observation.
+                                        format: date-time
+                                        type: string
+                                      total:
+                                        description: Total is the denominator for
+                                          a Ratio observation, as a decimal string.
+                                        pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                        type: string
+                                      unit:
+                                        description: 'Unit of the numbers: Percent
+                                          (a ratio 0..1), Milliseconds, Seconds, Count,
+                                          or free text.'
+                                        type: string
+                                      value:
+                                        description: Value is the observed number,
+                                          as a decimal string.
+                                        pattern: ^-?[0-9]+(\.[0-9]+)?$
+                                        type: string
+                                      window:
+                                        description: Window the observation covers,
+                                          e.g. "5m".
+                                        type: string
+                                    required:
+                                    - kind
+                                    - name
+                                    type: object
+                                  maxItems: 16
+                                  type: array
                               required:
                               - name
                               - namespace
@@ -259,6 +383,14 @@ spec:
                               for this history entry.
                             format: int64
                             type: integer
+                          lastRetryTimestamp:
+                            description: |-
+                              LastRetryTimestamp is the time when a retry was most recently requested for this deployment.
+                              When set, downstream controllers (health checks, kruise rollout step gates) use this as a
+                              cutoff: stale failure conditions with LastTransitionTime older than LastRetryTimestamp are
+                              ignored as they reflect the pre-retry state.
+                            format: date-time
+                            type: string
                           message:
                             description: |-
                               Message provides a descriptive message about this deployment entry
@@ -311,6 +443,31 @@ spec:
                                 description: Digest is the image digest if available
                                   from the ImagePolicy.
                                 type: string
+                              metadataUnresolved:
+                                description: |-
+                                  MetadataUnresolved is true when this release's OCI manifest could not be
+                                  read, so Requires and the version fields say nothing about the image.
+                                  A RolloutDependency blocks such a release rather than reading the absent
+                                  annotations as "declares no requirement", which would open the gate
+                                  whenever the registry is unreachable.
+                                type: boolean
+                              requires:
+                                additionalProperties:
+                                  type: string
+                                description: |-
+                                  Requires maps a contract name to what this release requires of that
+                                  contract, extracted from "com.kuberik.rollout.requires.<contract>" OCI
+                                  annotations. Values are version constraints as defined by
+                                  github.com/Masterminds/semver, applied verbatim — note that a bare version
+                                  is an exact match there, not a floor.
+                                  RolloutDependency uses these to gate this release on the deployed version of
+                                  the Rollout providing each contract.
+
+                                  Bounded because it is populated from image annotations, which are outside
+                                  this controller's trust boundary, and is stored on every release and every
+                                  history entry.
+                                maxProperties: 32
+                                type: object
                               revision:
                                 description: Revision is the revision information
                                   extracted from OCI annotations if available.
@@ -332,25 +489,6 @@ spec:
                         type: object
                       type: array
                       x-kubernetes-list-type: atomic
-                    relationship:
-                      description: Relationship defines how this environment relates
-                        to another environment
-                      properties:
-                        environment:
-                          description: Environment is the environment name this environment
-                            relates to
-                          type: string
-                        type:
-                          description: 'Type is the type of relationship: "After"
-                            or "Parallel"'
-                          enum:
-                          - After
-                          - Parallel
-                          type: string
-                      required:
-                      - environment
-                      - type
-                      type: object
                   required:
                   - environment
                   type: object
@@ -376,6 +514,159 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              wave:
+                description: Wave is set for Environments with a site and describes
+                  their wave state.
+                properties:
+                  blocker:
+                    description: Blocker explains why the site is not Ready; nil when
+                      WaveReady is True.
+                    properties:
+                      environment:
+                        description: Environment is the canonical tier of the member
+                          waited on or at fault.
+                        type: string
+                      missingWaves:
+                        description: MissingWaves are the waves absent from the sequence
+                          (InvalidTopology, wave gap).
+                        items:
+                          format: int32
+                          type: integer
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      names:
+                        description: |-
+                          Names are the alias names registered for one tier (InvalidTopology), the
+                          offending name (UnknownTier), or, for DuplicateSite, names[0] is the
+                          deployment name the existing owner holds the site for.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      outcome:
+                        description: Outcome is set when a leader's bake ended badly.
+                        enum:
+                        - Failed
+                        - Cancelled
+                        type: string
+                      owner:
+                        description: Owner is the existing owner of the site (DuplicateSite).
+                        properties:
+                          cluster:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        required:
+                        - cluster
+                        - name
+                        - namespace
+                        type: object
+                      pinnedVersion:
+                        description: PinnedVersion is the version the Rollout pins
+                          (Pinned).
+                        type: string
+                      reason:
+                        description: Reason is the WaveReady reason.
+                        type: string
+                      revision:
+                        description: Revision is the full revision concerned.
+                        type: string
+                      selectedVersion:
+                        description: SelectedVersion is the tag of the wave's pick
+                          (Pinned).
+                        type: string
+                      site:
+                        description: Site is the member waited on.
+                        type: string
+                      waitingOn:
+                        description: WaitingOn is what the wave waits for.
+                        enum:
+                        - Selection
+                        - Bake
+                        - Candidate
+                        - Sites
+                        type: string
+                      waves:
+                        description: Waves are the waves present (InvalidTopology,
+                          wave gap).
+                        items:
+                          format: int32
+                          type: integer
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                    - reason
+                    type: object
+                  environment:
+                    description: |-
+                      Environment is the environment name this site was registered under in
+                      GitHub. Deregistration uses it even after spec.environment changed.
+                    type: string
+                  leader:
+                    description: Leader is the site leading this (environment, wave).
+                    type: string
+                  members:
+                    description: Members are the registered sites of this environment
+                      and of its upstream environment.
+                    items:
+                      description: WaveMemberStatus is one site of a wave as observed
+                        in the backend.
+                      properties:
+                        bakeStatus:
+                          description: BakeStatus of the member's newest deployment.
+                          type: string
+                        deregistered:
+                          description: Deregistered is true when the member was removed
+                            and no longer counts.
+                          type: boolean
+                        environment:
+                          description: Environment of the member.
+                          type: string
+                        revision:
+                          description: Revision of the member's newest deployment.
+                          type: string
+                        site:
+                          description: Site of the member.
+                          type: string
+                        wave:
+                          description: Wave of the member.
+                          format: int32
+                          type: integer
+                      required:
+                      - environment
+                      - site
+                      - wave
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  name:
+                    description: |-
+                      Name is the deployment name as written to GitHub (with the kuberik prefix).
+                      Deregistration uses it even after spec.name changed.
+                    type: string
+                  role:
+                    description: |-
+                      Role is Leader or Follower within (environment, wave). It is also the role
+                      recorded on the next GitHub deployment this site creates.
+                    type: string
+                  selectedRevision:
+                    description: SelectedRevision is the revision the leader of this
+                      wave currently selected.
+                    type: string
+                  site:
+                    description: Site is the effective site of this Environment (spec
+                      or controller default).
+                    type: string
+                  wave:
+                    description: Wave is the effective wave of this Environment.
+                    format: int32
+                    type: integer
+                required:
+                - site
+                - wave
+                type: object
             type: object
         required:
         - spec

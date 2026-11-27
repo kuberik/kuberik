@@ -27,6 +27,14 @@ crds:
   # leaves them (and every Rollout, RolloutGate, ... in the cluster) in place.
   keep: true
 
+# ValidatingAdmissionPolicies for manual approvals: they verify
+# approval.kuberik.com/by on RolloutApprovals and stop anyone but the
+# rollout-controller editing a policy-owned RolloutGate. Rendered only on
+# clusters that serve ValidatingAdmissionPolicy (Kubernetes 1.30+). Without
+# them `by` is unverified and the dashboard does not show it.
+admissionPolicies:
+  enabled: true
+
 # Core rollout-controller settings. Always installed.
 rolloutController:
   enabled: true
@@ -62,6 +70,29 @@ rolloutController:
   extraArgs: []
   # Extra environment variables for the manager container. Standard
   # corev1.EnvVar shape - supports valueFrom: { secretKeyRef|configMapKeyRef }.
+  extraEnv: []
+
+# release-controller: watches OCI registries and publishes ReleaseSource /
+# ReleaseSlice objects that Rollouts reference through spec.releaseSourceRef.
+# Required for Rollouts to receive releases. Its CRDs ship with
+# crds.install regardless of this toggle.
+releaseController:
+  enabled: true
+  image:
+    repository: ghcr.io/kuberik/release-controller
+    # Defaults to the version pinned by the template when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  # Extra command-line args appended to /manager.
+  extraArgs: []
   extraEnv: []
 
 # Prometheus Operator ServiceMonitor for scraping controller metrics.

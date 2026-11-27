@@ -1,5 +1,6 @@
-# Sample Rollout: tracks one image policy with a 10-minute bake window.
-# kubectl apply -f rollout.yaml
+# Sample Rollout: tracks one ReleaseSource with a 10-minute bake window.
+# Needs the release-controller (on by default in the chart).
+# kubectl apply -f releasesource.yaml -f rollout.yaml
 ---
 apiVersion: kuberik.com/v1alpha1
 kind: Rollout
@@ -7,7 +8,7 @@ metadata:
   name: my-app
   namespace: default
 spec:
-  releasesImagePolicy:
+  releaseSourceRef:
     name: my-app
   versionHistoryLimit: 10
   bakeTime: 10m
